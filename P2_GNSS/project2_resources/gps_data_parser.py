@@ -42,7 +42,6 @@ def parse_icp(r_file, times):
     times.sort()
     return (pranges, trans_times), times
 
-
 def parse_rinex_v2(r_file):
     with open(r_file, 'r') as fin:
         header_finished = False
@@ -119,7 +118,7 @@ def parse_rinex_v2(r_file):
                                                clock_drift=clock_drift,
                                                clock_drift_rate=clock_drift_rate)
                     else:
-                        print("Found PRN: {p:s}".format(p=prn))
+                        #print("Found PRN: {p:s}".format(p=prn))
                         nav_msg = \
                             rinex_nav_msg(prn=prn,
                                           sqrt_a=sqrt_a,
@@ -219,7 +218,7 @@ class rinex_nav_msg(object):
 #                    ii = kk
 #                    break
             semimajor = self.sqrt_a[ii]**2
-            mean_motion = np.sqrt(wgs84.MU / semimajor**3) + self.delta_n[ii]
+            mean_motion = np.sqrt(MU / semimajor**3) + self.delta_n[ii]
             tk = trans_time[jj] - self.toe[ii]
             if tk > 302400:
                 tk = tk - 604800
@@ -257,8 +256,8 @@ class rinex_nav_msg(object):
                 + self.sin_cor_inc_ang[ii] * np.sin(2 * arg_lat) \
                 + self.cos_cor_inc_ang[ii] * np.cos(2 * arg_lat)
             cor_long_ascend = self.long_ascend_node[ii] \
-                + (self.omega_dot[ii] - wgs84.EARTH_ROT_RATE) * tk \
-                - wgs84.EARTH_ROT_RATE * self.toe[ii]
+                + (self.omega_dot[ii] - EARTH_ROT_RATE) * tk \
+                - EARTH_ROT_RATE * self.toe[ii]
             xp = rad * np.cos(cor_arg_lat)
             yp = rad * np.sin(cor_arg_lat)
             c_om = np.cos(cor_long_ascend)
@@ -276,25 +275,38 @@ class rinex_nav_msg(object):
 def ecef_to_lla(xyz):
     lon = np.arctan2(xyz[1], xyz[0])
     p = np.sqrt(xyz[0]**2 + xyz[1]**2)
-    E = np.sqrt(wgs84.EQ_RAD**2 - wgs84.POL_RAD**2)
-    F = 54 * (wgs84.POL_RAD * xyz[2])**2
-    G = p**2 + (1 - wgs84.ECCENTRICITY**2) \
-        * (xyz[2]**2) - (wgs84.ECCENTRICITY * E)**2
-    c = wgs84.ECCENTRICITY**4 * F * p**2 / G**3
+    E = np.sqrt(EQ_RAD**2 - POL_RAD**2)
+    F = 54 * (POL_RAD * xyz[2])**2
+    G = p**2 + (1 - ECCENTRICITY**2) \
+        * (xyz[2]**2) - (ECCENTRICITY * E)**2
+    c = ECCENTRICITY**4 * F * p**2 / G**3
     s = (1 + c + np.sqrt(c**2 + 2 * c))**(1 / 3)
     P = (F / (3 * G**2)) / (s + 1 / s + 1)**2
-    Q = np.sqrt(1 + 2 * wgs84.ECCENTRICITY**4 * P)
-    k1 = -P * wgs84.ECCENTRICITY**2 * p / (1 + Q)
-    k2 = 0.5 * wgs84.EQ_RAD**2 * (1 + 1 / Q)
-    k3 = -P * (1 - wgs84.ECCENTRICITY**2) * xyz[2]**2 / (Q * (1 + Q))
+    Q = np.sqrt(1 + 2 * ECCENTRICITY**4 * P)
+    k1 = -P * ECCENTRICITY**2 * p / (1 + Q)
+    k2 = 0.5 * EQ_RAD**2 * (1 + 1 / Q)
+    k3 = -P * (1 - ECCENTRICITY**2) * xyz[2]**2 / (Q * (1 + Q))
     k4 = -0.5 * P * p**2
-    k5 = p - wgs84.ECCENTRICITY**2 * (k1 + np.sqrt(k2 + k3 + k4))
+    k5 = p - ECCENTRICITY**2 * (k1 + np.sqrt(k2 + k3 + k4))
     U = np.sqrt(k5**2 + xyz[2]**2)
-    V = np.sqrt(k5**2 + (1 - wgs84.ECCENTRICITY**2) * xyz[2]**2)
-    alt = U * (1 - wgs84.POL_RAD**2 / (wgs84.EQ_RAD * V))
-    z0 = wgs84.POL_RAD**2 * xyz[2] / (wgs84.EQ_RAD * V)
-    ep = wgs84.EQ_RAD / wgs84.POL_RAD * wgs84.ECCENTRICITY
+    V = np.sqrt(k5**2 + (1 - ECCENTRICITY**2) * xyz[2]**2)
+    alt = U * (1 - POL_RAD**2 / (EQ_RAD * V))
+    z0 = POL_RAD**2 * xyz[2] / (EQ_RAD * V)
+    ep = EQ_RAD / POL_RAD * ECCENTRICITY
     lat = np.arctan((xyz[2] + z0 * ep**2) / p)
     return lat, lon, alt
 
+
+def ecef_to_ned(ecef, reference):
+    # Convert reference pos to LLA
+    lat, long, alt = ecef_to_lla(reference)
+    # Directional cosine matrix for LLA to NED
+    DCM = np.array([[-np.sin(lat)*np.cos(long), -np.sin(lat)*np.sin(long),
+                     np.cos(lat)],
+                    [-np.sin(long), np.cos(long), 0],
+                    [-np.cos(lat)*np.cos(long), -np.cos(lat)*np.sin(long),
+                     -np.sin(lat)]])
+    # Use DCM to calculate NED relative to reference data point
+    NED = DCM @ (ecef-reference)
+    return NED
 
