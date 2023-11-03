@@ -72,14 +72,14 @@ for sat in bsats:
 base_ref = np.empty(times.size)
 i = 0
 for t in times:
-    tan_theta_min = 0
+    tan_theta_max = 0
     for sat in bsats:
-        U = bsats[sat]['LOS'][i][2]
-        N = bsats[sat]['LOS'][i][1]
-        E = bsats[sat]['LOS'][i][0]
-        tan_theta = U/math.sqrt(N**2 + E**2)
-        if tan_theta < tan_theta_min:
-            tan_theta_min = tan_theta
+        D = bsats[sat]['LOS'][i][2]
+        E = bsats[sat]['LOS'][i][1]
+        N = bsats[sat]['LOS'][i][0]
+        tan_theta = -D/math.sqrt(N**2 + E**2)
+        if tan_theta > tan_theta_max:
+            tan_theta_max = tan_theta
             base_ref[i] = int(sat)
     i += 1
     
@@ -180,7 +180,7 @@ plt.grid(True)
 
 # plot altitude vs time
 fig, ax = plt.subplots()
-ax.plot(times-times[0],betas[:,2])
+ax.plot(times-times[0],-betas[:,2])
 ax.set(xlabel = 'time, s', ylabel = 'Altitude, m',
        title = 'Height-time coordinates, base at origin')
 plt.grid(True)
