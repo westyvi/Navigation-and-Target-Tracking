@@ -77,7 +77,20 @@ class EKF:
                       [np.block([np.zeros((3,9)), -1/self.t_a*np.eye(3), np.zeros((3,3))])],
                       [np.block([np.zeros((3,12)), -1/self.t_g*np.eye(3)])]
                      ])
-
+        # Aabhash's way
+        A = np.zeros((15, 15))
+        A[:3, :3] = -navpy.skew(wn_EN)
+        A[:3, 3:6] = np.eye(3)
+        A[3:6, :3] = (g / a) * np.diag([-1, -1, 2])
+        A[3:6, 3:6] = -navpy.skew(2 * wn_IE + wn_EN)
+        A[3:6, 6:9] = navpy.skew(DCM @ f_b)
+        A[3:6, 9:12] = DCM
+        A[6:9, 6:9] = -navpy.skew(wn_IE + wn_EN)
+        A[6:9, 12:15] = -DCM
+        A[9:12, 9:12] = -1/self.t_a * np.eye(3)
+        A[12:15, 12:15] = -1/self.t_g * np.eye(3)
+        
+        
         # L: process noise gain matrix
         L = np.block([
                       [np.zeros((3,12))],
@@ -86,6 +99,12 @@ class EKF:
                       [np.block([np.zeros((3,6)),np.eye(3),np.zeros((3,3))])],
                       [np.block([np.zeros((3,9)),np.eye((3))])]
                     ])
+        # Aabhash's solution
+        L = np.zeros((15, 12))
+        L[3:6, :3] = DCM
+        L[6:9, 3:6] = -DCM
+        L[9:12, 6:9] = np.eye(3)
+        L[12:15, 9:12] = np.eye(3)
         
         # zero-mean correlated Markov bias error PSDS:
         sigma_mua = 2*math.pow(self.sigma_ba,2)/self.t_a
@@ -104,15 +123,20 @@ class EKF:
         
         # Q: discretized noise covariance matrix (first order approximation)
         Q = ( np.eye(15) + dt*A )@( dt*L@Sw@L.T)
+        # Aabhash's solution
+        # forming the discretized noise covariance
+        first_row = np.concatenate((-A, L @ Sw @ L.T), axis=1)
+        second_row = np.concatenate((np.zeros((15, 15)), A.T), axis=1)
+        E = expm(
+            dt * np.concatenate((first_row, second_row), axis=0)
+        )
+        Q = E[15:30, 15:30].T @ E[:15, 15:30]
         
-
         # update P_hat to apriori covariance estimate P_k|k-1
         self.p_hat = F @ self.p_hat @ F.T + Q
         
-        
         # update nominal state
         self.x_hat = self.imu.INSUpdate(self.x_hat, f_b, wb_IB, dt)
-        
         
         # debug statements
         if self.print:
@@ -140,10 +164,13 @@ class EKF:
         
         # define measurement matrix H
         H = np.block([np.eye(6), np.zeros((6,9))])
+        # Aabhash's
+        #H = np.concatenate((np.eye(6), np.zeros((6, 9))), axis=1)
+
         
         # define GNSS measurement noise covariance matrix R
-        P_GNSS_p = self.sigma_p*np.eye(3)
-        P_GNSS_v = self.sigma_v*np.eye(3)
+        P_GNSS_p = math.pow(self.sigma_p,2)*np.eye(3)
+        P_GNSS_v = math.pow(self.sigma_v,2)*np.eye(3)
         R = np.block([
                       [np.block([P_GNSS_p, np.zeros((3,3))])],
                       [np.block([np.zeros((3,3)), P_GNSS_v])]
@@ -151,14 +178,24 @@ class EKF:
     
         # error state position is defined in NED; convert x_hat and x_GNSS to NED
         # use INS estimated LLA (stored in current self.x_hat) as reference 
-        x_GNSS_NED = navpy.lla2ned(x_GNSS[0], x_GNSS[1], x_GNSS[2], self.x_hat[0], self.x_hat[1], self.x_hat[2])
+        x_GNSS_NED = navpy.lla2ned(x_GNSS[0], x_GNSS[1], x_GNSS[2], 
+                                   self.x_hat[0], self.x_hat[1], self.x_hat[2],
+                                   latlon_unit="rad",
+                                   alt_unit="m",
+                                   model="wgs84",)
         x_GNSS_NED = np.block([x_GNSS_NED, x_GNSS[3:15]])
-        x_hat_NED = navpy.lla2ned(self.x_hat[0], self.x_hat[1], self.x_hat[2], self.x_hat[0], self.x_hat[1], self.x_hat[2])
+        x_hat_NED = navpy.lla2ned(self.x_hat[0], self.x_hat[1], self.x_hat[2], 
+                                  self.x_hat[0], self.x_hat[1], self.x_hat[2],
+                                  latlon_unit="rad",
+                                  alt_unit="m",
+                                  model="wgs84",)
+        #x_hat_NED = np.array([0, 0, 0])# FIXME this and the above statement should be redundant
         x_hat_NED = np.block([x_hat_NED, self.x_hat[3:15]])
         
         # convert estimated state to expected measurement, compare to GNSS measurement
         y_hat = H @ x_hat_NED
         y_GNSS_measured = H @ x_GNSS_NED
+        #y_GNSS_measured = np.block([x_GNSS_NED[0:3], x_GNSS[3:6]]) # fixme above two statements should be equivalent
         dy = y_GNSS_measured - y_hat
         
         # measurement noise gain matrix M
@@ -166,6 +203,8 @@ class EKF:
         
         # innovation covariance noise covariance matrix S
         S = H @ self.p_hat @ H.T + M @ R @ M.T
+        # aabhash's
+        #S = H @ self.p_hat @ H.T + R
         
         # Kalman gain matrix
         K = self.p_hat @ H.T @ np.linalg.inv(S)
@@ -182,6 +221,9 @@ class EKF:
         
         # update nominal state based on error state estimate
         self.nominal_state_update(dx_hat)
+        # FIXME this should be redundant
+        '''self.x_hat[2] = x_GNSS[2]
+        self.x_hat[5] = x_GNSS[5]'''
         
         
     def nominal_state_update(self, dx):
@@ -202,14 +244,24 @@ class EKF:
         
         # update euler angles via DCM update
         DCM = Euler2DCM(self.x_hat[6:9])
-        DCM = ( np.eye(3) - navpy.skew(dx[6:9]) ) @ DCM
-        r = math.atan(DCM[2][1]/DCM[2][2])
+        post_dcm = ( np.eye(3) - navpy.skew(dx[6:9]) ) @ DCM
+        '''r = math.atan(DCM[2][1]/DCM[2][2])
         print(DCM[2][0])
         p = -math.asin(DCM[2][0])
         y = math.atan(DCM[1][0]/DCM[0][0])
         self.x_hat[6] = r
         self.x_hat[7] = p
-        self.x_hat[8] = y
+        self.x_hat[8] = y'''
+        # aabhash's:
+        self.x_hat[6:9] = np.array(
+            [
+                np.arctan2(post_dcm[2, 1], post_dcm[2, 2]),
+                -np.arcsin(post_dcm[2, 0]),
+                np.arctan2(post_dcm[1, 0], post_dcm[0, 0]),
+            ]
+        )
+        
+        
         
 # IMU class stores current DCM and state
 # contains methods to output updated DCM and state given IMU f_B and w_B measurements
@@ -251,6 +303,7 @@ class IMU:
     # given gyro measurement (wb_IB)_k-1, return (euler angles)_k as 1x3 array
     def updateEuler(self, wb_IB):
         wb_NB = wb_IB - self.wb_IN
+        #wb_NB = wb_IB # FIXME take out this line that overwrites wb_NB excluding transport rates 
         [r,p,y] = self.x_hat[6:9]
         A = np.array([
             [1, math.sin(r)*math.sin(p), math.cos(r)*math.sin(p)],
@@ -268,6 +321,7 @@ class IMU:
         g_N = np.array([0,0,g])
         v_N = self.x_hat[3:6]
         v_N_dot = f_N + g_N - navpy.skew(2*self.wn_IE + self.wn_EN) @ v_N
+        #v_N_dot = f_N + g_N # FIXME take out this line that assumes flat earth
         return (v_N + self.dt*v_N_dot)
     
     # using estimated velocity, propogate position

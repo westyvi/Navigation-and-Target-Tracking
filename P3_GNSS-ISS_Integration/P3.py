@@ -39,7 +39,8 @@ x0[3:6] = np.array([gps['v_N'], gps['v_E'], gps['v_D']])
 x0[6:9] = np.zeros(3) # rpy
 x0[9:12] = np.array([0.25, 0.077, -0.12]) # accelerometer biases, m/s^2
 x0[12:15] = 1e-4*np.array([2.4, -1.3, 5.6]) # gyroscope biases, rad/s
-P0 = np.eye(15)*1
+P0 = 0.1 * np.eye(15)
+P0[:6, :6] = 1 * np.eye(6)
 dt = 0.02
 filter = EKF(x0,P0)
     
@@ -48,7 +49,6 @@ x_est = np.zeros((GpsQueue.qsize(),15))
 times = np.zeros(GpsQueue.qsize())
 i = -1
 while True:
-    try:
         i += 1
         
         # store prior gps measurement to determine if GPS data has updated via comparison
@@ -72,14 +72,10 @@ while True:
         # if new gps data, correct INS estimate according to ES-EKF equations
         if ( abs(gps_measurement[2] - gps_last[2]) > 0.0000001):
             filter.measurement_update(gps_measurement) 
-            print(i)
+            #print(i)
     
         # store estimated vehicle state at each timestep for plotting
         x_est[i] = filter.x_hat
-    except:
-        print('loop broke at')
-        print(i)
-        break
     
     
 # convert position to NED for plotting
