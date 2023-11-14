@@ -50,6 +50,7 @@ print(x0_forPlotting)
 
 # run EKF for the entirety of the gps/imu datasets given 
 x_est = np.zeros((GpsQueue.qsize(),15))
+p_est = np.zeros((GpsQueue.qsize(),15,15))
 times = np.zeros(GpsQueue.qsize())
 i = -1
 while True:
@@ -81,6 +82,7 @@ while True:
     
         # store estimated vehicle state at each timestep for plotting
         x_est[i] = filter.x_hat
+        p_est[i] = filter.p_hat
     except Exception as e:
         print(f'loop broke at {str(i)} with error {str(e)}')
     
@@ -92,107 +94,89 @@ for row in x_est:
     x_NED = navpy.lla2ned(row[0], row[1], row[2], x_ref[0], x_ref[1], x_ref[2])
     x_est[i][0:3] = x_NED
     i += 1
-    
+
+#%%
 # plot results
 # x_N vs x_E, inintial point as reference
 fig, ax = plt.subplots()
 ax.plot(x_est[:,1],x_est[:,0])
 ax.set(xlabel = 'East, m', ylabel = 'North, m',
-       title = 'North-East coordinates, base at origin')
+       title = 'North-East coordinates, origin at initial position')
 plt.grid(True)
 
 # Altitude vs time history
 fig, ax = plt.subplots()
 ax.plot(times - times[0], -x_est[:,2])
 ax.set(xlabel = 'time, s', ylabel = 'altitude, m',
-       title = 'Altitude-time history')
+       title = 'Altitude time history')
 plt.grid(True)
 
-# v_N vs time
+# v vs time
 fig, ax = plt.subplots()
-ax.plot(times - times[0], x_est[:,3])
-ax.set(xlabel = 'time, s', ylabel = 'north-velocity, m/s',
-       title = 'velocity_N-time history')
+ax.plot(times - times[0], x_est[:,3], 'r', label='v_N')
+ax.plot(times - times[0], x_est[:,4], 'g', label='v_E')
+ax.plot(times - times[0], x_est[:,5], 'b', label='v_D')
+ax.set(xlabel = 'time, s', ylabel = 'velocity, m/s',
+       title = 'navigation frame velocity time history')
 plt.grid(True)
-
-# v_E vs time
-fig, ax = plt.subplots()
-ax.plot(times - times[0], x_est[:,4])
-ax.set(xlabel = 'time, s', ylabel = 'east-velocity, m/s',
-       title = 'velocity_E-time history')
-plt.grid(True)
-
-# v_down vs time
-fig, ax = plt.subplots()
-ax.plot(times - times[0], x_est[:,5])
-ax.set(xlabel = 'time, s', ylabel = 'down-velocity, m/s',
-       title = 'velocity_D-time history')
-plt.grid(True)
+ax.legend()
 
 # roll vs time
 fig, ax = plt.subplots()
-ax.plot(times - times[0], x_est[:,6])
-ax.set(xlabel = 'time, s', ylabel = 'roll, rad',
-       title = 'roll-time history')
+ax.plot(times - times[0], x_est[:,6], 'r', label='roll')
+ax.plot(times - times[0], x_est[:,7], 'g', label='pitch')
+ax.plot(times - times[0], x_est[:,8], 'b', label='yaw')
+ax.set(xlabel = 'time, s', ylabel = 'Euler angle, rad',
+       title = 'Euler angle time history')
 plt.grid(True)
-
-# pitch vs time
-fig, ax = plt.subplots()
-ax.plot(times - times[0], x_est[:,7])
-ax.set(xlabel = 'time, s', ylabel = 'pitch, rad',
-       title = 'pitch-time history')
-plt.grid(True)
-
-# yaw vs time
-fig, ax = plt.subplots()
-ax.plot(times - times[0], x_est[:,8])
-ax.set(xlabel = 'time, s', ylabel = 'yaw, rad',
-       title = 'yaw-time history')
-plt.grid(True)
+ax.legend()
 
 # accelerometer x_B bias vs time
 fig, ax = plt.subplots()
-ax.plot(times - times[0], x_est[:,9])
-ax.set(xlabel = 'time, s', ylabel = 'accelerometer x_B bias, m/s^2',
-       title = 'acclerometer body x_bias-time history')
+ax.plot(times - times[0], x_est[:,9], 'r', label='b_x')
+ax.plot(times - times[0], x_est[:,10], 'g', label='b_y')
+ax.plot(times - times[0], x_est[:,11], 'b', label='b_z')
+ax.set(xlabel = 'time, s', ylabel = 'accelerometer bias, m/s^2',
+       title = 'acclerometer body-frame biases time history')
 plt.grid(True)
-
-# accelerometer y_B bias vs time
-fig, ax = plt.subplots()
-ax.plot(times - times[0], x_est[:,10])
-ax.set(xlabel = 'time, s', ylabel = 'accelerometer y_B bias, m/s^2',
-       title = 'acclerometer body y_bias-time history')
-plt.grid(True)
-
-# accelerometer z_B bias vs time
-fig, ax = plt.subplots()
-ax.plot(times - times[0], x_est[:,11])
-ax.set(xlabel = 'time, s', ylabel = 'accelerometer z_B bias, m/s^2',
-       title = 'acclerometer body z_bias-time history')
-plt.grid(True)
+ax.legend()
 
 # gyroscope x_B bias vs time
 fig, ax = plt.subplots()
-ax.plot(times - times[0], x_est[:,12])
-ax.set(xlabel = 'time, s', ylabel = 'gyroscope x_B bias, rad/s',
-       title = 'gyroscope body x_bias-time history')
+ax.plot(times - times[0], x_est[:,12], 'r', label='b_x')
+ax.plot(times - times[0], x_est[:,13], 'g', label='b_y')
+ax.plot(times - times[0], x_est[:,14], 'b', label='b_z')
+ax.set(xlabel = 'time, s', ylabel = 'gyroscope bias, rad/s',
+       title = 'gyroscope body-frame biases time history')
 plt.grid(True)
-
-# gyroscope y_B bias vs time
-fig, ax = plt.subplots()
-ax.plot(times - times[0], x_est[:,13])
-ax.set(xlabel = 'time, s', ylabel = 'gyroscope y_B bias, rad/s',
-       title = 'gyroscope body y_bias-time history')
-plt.grid(True)
-
-# gyroscope z_B bias vs time
-fig, ax = plt.subplots()
-ax.plot(times - times[0], x_est[:,14])
-ax.set(xlabel = 'time, s', ylabel = 'gyroscope z_B bias, rad/s',
-       title = 'gyroscope body z_bias-time history')
-plt.grid(True)
-
-    
+ax.legend()
 
 
-        
+
+# =============================================================================
+# Check VDOP and HDOP
+# =============================================================================
+
+vdops = np.array([])
+hdops = np.array([])
+for index, mat in enumerate(p_est):
+    if mat is not None:
+        vdop = np.sqrt(mat[2, 2] * 2)
+        hdop = np.sqrt(mat[0, 0] * 2 + mat[1, 1] * 2)
+    else:
+        vdop = 0
+        hdop = 0
+    vdops = np.append(vdops, vdop)
+    hdops = np.append(hdops, hdop)
+
+# plotting the results
+fig, (ax1, ax2) = plt.subplots(1, 2)
+fig.suptitle("Dilution of Precsion")
+ax1.plot(vdops)
+ax1.set(xlabel="Time (s)")
+ax1.set(ylabel="VDOP (m)")
+
+ax2.plot(hdops)
+ax2.set(xlabel="Time (s)")
+ax2.set(ylabel="HDOP (m)")
+
