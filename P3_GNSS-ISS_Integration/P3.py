@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import math
 from matplotlib import pyplot as plt
-from P3_Classes import EKF, DataQueue
+from P3_Classes import EKF
 import navpy
 from queue import Queue
 import copy
@@ -35,6 +35,7 @@ imu = ImuQueue.get()
 gps_measurement = np.array([gps['lat'],gps['long'],gps['alt'],gps['v_N'],gps['v_E'],gps['v_D']])
 x0 = np.zeros(15)
 x0[0:3] = np.array([gps['lat'], gps['long'], gps['alt']])
+x0_forPlotting = x0[0:3]
 x0[3:6] = np.array([gps['v_N'], gps['v_E'], gps['v_D']])
 x0[6:9] = np.zeros(3) # rpy
 x0[9:12] = np.array([0.25, 0.077, -0.12]) # accelerometer biases, m/s^2
@@ -42,13 +43,17 @@ x0[12:15] = 1e-4*np.array([2.4, -1.3, 5.6]) # gyroscope biases, rad/s
 P0 = 0.1 * np.eye(15)
 P0[:6, :6] = 1 * np.eye(6)
 dt = 0.02
+print(x0)
 filter = EKF(x0,P0)
-    
+print(x0)
+print(x0_forPlotting)
+
 # run EKF for the entirety of the gps/imu datasets given 
 x_est = np.zeros((GpsQueue.qsize(),15))
 times = np.zeros(GpsQueue.qsize())
 i = -1
 while True:
+    try:
         i += 1
         
         # store prior gps measurement to determine if GPS data has updated via comparison
@@ -72,16 +77,19 @@ while True:
         # if new gps data, correct INS estimate according to ES-EKF equations
         if ( abs(gps_measurement[2] - gps_last[2]) > 0.0000001):
             filter.measurement_update(gps_measurement) 
-            #print(i)
+            print(i)
     
         # store estimated vehicle state at each timestep for plotting
         x_est[i] = filter.x_hat
+    except Exception as e:
+        print(f'loop broke at {str(i)} with error {str(e)}')
     
     
 # convert position to NED for plotting
 i = 0
+x_ref =  x_est[0][0], x_est[0][1], x_est[0][2]
 for row in x_est:
-    x_NED = navpy.lla2ned(row[0], row[1], row[2], x_est[0][0], x_est[0][1], x_est[0][2],)
+    x_NED = navpy.lla2ned(row[0], row[1], row[2], x_ref[0], x_ref[1], x_ref[2])
     x_est[i][0:3] = x_NED
     i += 1
     
@@ -95,7 +103,7 @@ plt.grid(True)
 
 # Altitude vs time history
 fig, ax = plt.subplots()
-ax.plot(times - times[0], x_est[:,2])
+ax.plot(times - times[0], -x_est[:,2])
 ax.set(xlabel = 'time, s', ylabel = 'altitude, m',
        title = 'Altitude-time history')
 plt.grid(True)

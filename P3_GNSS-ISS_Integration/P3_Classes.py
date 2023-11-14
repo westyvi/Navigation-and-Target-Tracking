@@ -5,36 +5,16 @@ Created on Fri Nov 10 08:32:22 2023
 @author: joewe
 """
 
-from queue import Queue
 import numpy as np
 import math
 import navpy
 from scipy.linalg import expm
 
-# class converts a pandas datatable with rows of information to a queue of data seriess
-class DataQueue:
-    def __init__(self, data_table):
-        self.queue = Queue(maxsize = data_table.shape[0])
-        for i, row in data_table.iterrows():
-            self.queue.put(row)
-
-    def enqueue(self, row):
-        self.queue.put(row)
-
-    def dequeue(self):
-        if not self.queue.empty():
-            return self.queue.get()
-        else :
-            return ValueError('queue empty: cannot dequeue')
-
-    def __str__(self):
-        return f'queue empty = {self.queue.empty()}'
-
 
 class EKF:
 
     def __init__(self, x0, P0):
-        self.x_hat = x0 # init nominal state # init error state as zeros
+        self.x_hat = x0 # init nominal state, [L,L,A,vn,ve,vd,r,p,y,bax,bay,baz,bgx,bgy,bgz]
         self.p_hat = P0 # init covariance matrix
         self.imu = IMU()
         self.print = False
@@ -107,8 +87,9 @@ class EKF:
         L[12:15, 9:12] = np.eye(3)
         
         # zero-mean correlated Markov bias error PSDS:
-        sigma_mua = 2*math.pow(self.sigma_ba,2)/self.t_a
-        sigma_mug = 2*math.pow(self.sigma_bg,2)/self.t_g
+        # FIXME verify sigma_b's should be multiplied by gravity g
+        sigma_mua = 2*math.pow(self.sigma_ba*g,2)/self.t_a
+        sigma_mug = 2*math.pow(self.sigma_bg*g,2)/self.t_g
         
         #Sw: PSD of stacked IMU noise vector [w_a, w_g, mu_a, mu_g]
         Sw = np.block([
