@@ -114,7 +114,10 @@ class EKF:
         Q = E[15:30, 15:30].T @ E[:15, 15:30]
         
         # update P_hat to apriori covariance estimate P_k|k-1
+        # consider joseph form of covariance update equation
+        # because covariance is always symmetric positive definite by definition
         self.p_hat = F @ self.p_hat @ F.T + Q
+        self.p_hat = 0.5*(self.p_hat + self.p_hat.T) # enforce
         
         # update nominal state
         self.x_hat = self.imu.INSUpdate(self.x_hat, f_b, wb_IB, dt)
@@ -199,6 +202,7 @@ class EKF:
         
         # update apriori covariance p_hat to posteriori error-state covariance 
         self.p_hat = self.p_hat - K @ S @ K.T
+        self.p_hat = 0.5*(self.p_hat + self.p_hat.T) # enforce
         
         # update nominal state based on error state estimate
         self.nominal_state_update(dx_hat)
