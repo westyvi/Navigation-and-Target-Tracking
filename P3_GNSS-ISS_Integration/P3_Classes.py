@@ -28,6 +28,16 @@ class EKF:
         self.sigma_bg = math.radians(0.3) # gyroscope Markov bias stddev, rad/sqrt(s)
         self.t_g = 300 # gyroscope bias time const, s
         self.sigma_wg = math.radians(0.95) # gyroscope output noise stddev, rad/s
+        
+        # fuck with values (for learning purposes)
+        self.sigma_p = 3 # GNSS position, m
+        self.sigma_v = 0.2 # GNSS velocity, m/s
+        self.sigma_ba = 0.2 # accelerometer Markov bias stddev, g
+        self.t_a = 10 # accelerometer bias time const, s
+        self.sigma_wa = 0.5 # accelerometer output noise stddev, g
+        self.sigma_bg = math.radians(1) # gyroscope Markov bias stddev, rad/sqrt(s)
+        self.t_g = 100 # gyroscope bias time const, s
+        self.sigma_wg = math.radians(3) # gyroscope output noise stddev, rad/s
     
     # propogate forward in time with only a proprioceptive (IMU) measurement:
     # updates nominal state and error state covariance (error state remains zero)

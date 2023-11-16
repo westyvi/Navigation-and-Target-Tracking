@@ -81,6 +81,7 @@ while True:
             print(i)
     
         # store estimated vehicle state at each timestep for plotting
+        # FIXME also want to store apriori estimate so I can see the correction step happening
         x_est[i] = filter.x_hat
         p_est[i] = filter.p_hat
     except Exception as e:
