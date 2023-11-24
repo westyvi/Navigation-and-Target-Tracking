@@ -20,6 +20,11 @@ from p4_Classes import EKF, NN
 import os
 import copy
 
+a = np.array([1,2,3,4,5])
+b = np.array([2,4,6,8,10])
+fig, ax = plt.subplots()
+ax.plot(a,b)
+
 # Load csv files into dictionary of data frames
 resource_path = os.path.join(".", "project4_resources")
 filenames = [f for f in os.listdir(resource_path) if f.endswith(".csv")]
@@ -37,42 +42,31 @@ ypos = 500  # m
 ydot = 7.5  # m/s
 w = math.radians(2)  # rad/s
 x0 = np.array([xpos, ypos, xdot, ydot, w])  # initial state vector
-xs = np.zeros((datalength, x0.shape[0])) # empty 2D array to log all state vectors through time
+xs_cleanEKF = np.zeros((datalength, x0.shape[0])) # empty 2D array to log all state vectors through time
+xs_clutterEKF = np.zeros((datalength, x0.shape[0]))
 
 # initialize EKF
 sigma_x = 10  # x uncertainty, m
 sigma_y = 10  # y uncertainty, m
 sigma_xdot = 5  # xdot uncertainty, m/s
 sigma_ydot = 5  # ydot uncertainty, m/s
-sigma_w = math.radians(2)  # omega uncertainty, rad/s
+sigma_w = math.radians(2) # omega uncertainty, rad/s
 P0 = np.diag([sigma_x**2, sigma_y**2, sigma_xdot **
              2, sigma_ydot**2, sigma_w**2])
-ekf = EKF(x0, P0)
+ekf_clean = EKF(x0, P0)
+ekf_clutter = EKF(copy.deepcopy(x0), copy.deepcopy(P0))
 dt = 1/1  # measurements taken at 1 Hz
 
 for i in range(datalength):
 
-    # call EKF with nearest neighbor association
-    # run EKF propogation and measurement matrix calculation
-    ekf.update_predict_matrices(dt)
-    ekf.predict(dt)
-    ekf.update_measurement_matrices()
-    S = copy.deepcopy(ekf.S) # FIXME make sure I don't need a deep copy here
-    y_hat = copy.deepcopy(ekf.y_hat) # FIXME or here
-    
-    # sort measurements into rows of measurement vector pairs to pass into NN
     bearings = dataframes['bearings_clean'].iloc[i, :].dropna()
     ranges = dataframes['ranges_clean'].iloc[i, :].dropna()
-    ys = np.array([ranges.to_numpy(),bearings.to_numpy()]).T
-    
-    # find NN measurement
-    yNN = NN.findNN(ys, y_hat, S)
-    
-    # run EKF measurement/correct step with yNN
-    ekf.measurement_correct(yNN)
-    xs[i,:] = ekf.x_hat
-    
-    
+    xs_cleanEKF[i,:] = NN.runNNEKF(ekf_clean, dt, ranges, bearings)
+    '''
+    clutter_bearings = dataframes['bearings_clutter'].iloc[i, :].dropna()
+    clutter_ranges = dataframes['ranges_clutter'].iloc[i, :].dropna()
+    xs_clutterEKF[i,:] = NN.runNNEKF(ekf_clutter, dt, ranges, bearings)
+    '''
     
     # call PDAF
 
@@ -81,13 +75,24 @@ for i in range(datalength):
 
 
 # plot estimated xy plane track trajectory for positive y
+
+# first, convert clean sensor data to state to plot as points to compare to EKF performance
+measures = np.zeros((datalength, 2)) # x,y 
+for i in range(datalength):
+    bear = dataframes['bearings_clean'].iloc[i]
+    r = dataframes['ranges_clean'].iloc[i]
+    measures[i,0] = math.sqrt(r**2/(((math.tan(bear))**-2)+1))*math.tan(bear)/abs(math.tan(bear))
+    measures[i,1] = math.sqrt(r**2/(((math.tan(bear))**2)+1))
+    
 fig, ax = plt.subplots()
 ax.plot(dataframes['truth'].iloc[:, 0],
         dataframes['truth'].iloc[:, 2], 'r', label='truth')
-ax.plot(xs[:,0], xs[:,1], 'b', label='clean NN EKF')
-ax.set(xlabel = 'x, m', ylabel = 'y, m',
-       title = 'xy plane track trajectory')
-ax.legend()
+#ax.scatter(measures[:,0], measures[:,1], marker='o',s=1, color='b')
+#ax.plot(xs_cleanEKF[:,0], xs_cleanEKF[:,1], 'b', label='clean NN EKF')
+#ax.plot(xs_clutterEKF[:,0], xs_clutterEKF[:,1], 'g', label='cluttered NN EKF')
+#ax.set(xlabel = 'x, m', ylabel = 'y, m',
+ #      title = 'xy plane track trajectory')
+#ax.legend()
 plt.grid(True)
 
 # Plot the transformed range and bearing measurements to the position domain overlaid with the true and estimated 𝑥 and 𝑦 position vs. time

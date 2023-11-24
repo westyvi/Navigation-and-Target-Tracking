@@ -116,6 +116,34 @@ class EKF:
         
         
 class NN:
+    
+    def runNNEKF(ekf, dt, ranges, bearings):
+        # input:
+        #   ekf: already initialized ekf class
+        #   dt: time step
+        #   ranges: data series of ranges for time step. Each column is a detection
+        #   bearings: data series of bearings. Each  column is a detection
+        # output:
+        #   state vector at current time step
+        
+        # call EKF with nearest neighbor association
+        # run EKF propogation and measurement matrix calculation
+        ekf.update_predict_matrices(dt)
+        ekf.predict(dt)
+        ekf.update_measurement_matrices()
+        S = copy.deepcopy(ekf.S) # FIXME make sure I don't need a deep copy here
+        y_hat = copy.deepcopy(ekf.y_hat) # FIXME or here
+        
+        # sort measurements into rows of measurement vector pairs to pass into NN
+        ys = np.array([ranges.to_numpy(),bearings.to_numpy()]).T
+        
+        # find NN measurement
+        yNN = NN.findNN(ys, y_hat, S)
+        
+        # run EKF measurement/correct step with yNN
+        ekf.measurement_correct(yNN)
+        return ekf.x_hat
+        
     def findNN(ys, y_hat, S):
         # returns measurement y that is the nearest neighbor to predicted measurement y_hat
         # by mahalanobis distance
@@ -132,6 +160,7 @@ class NN:
             if dist < mindist:
                 yNN = y
         return yNN
+    
                 
         
         
