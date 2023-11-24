@@ -29,19 +29,15 @@ class EKF:
         self.Pd = 0.9 # probability of detection
         self.gamma_c = 0.0032 # Poisson clutter spatial density
         
-    # propogate forward in time with only a proprioceptive (IMU) measurement:
-    # updates nominal state and error state covariance (error state remains zero)
-    def update(self, y_measured, dt):
+    def update_predict_matrices(self, dt):
        
         # breakout current state variables for ease of use in following matrix formations
-        w = self.x_hat[4]
-        xdot = self.x_hat[2] # FIXME check order of state vars
+        xdot = self.x_hat[2]
         ydot = self.x_hat[3]
-        x = self.x_hat[0]
-        y = self.x_hat[1]
+        w = self.x_hat[4]
         
         # ------- define EKF propogtion matrices: -----------------------------------------
-        # F: discrete-time state matrix
+        # F: discrete-time linearized state matrix
         F = np.eye(5)
         F[:2, 2:4] = [[math.sin(w*dt)/w, (math.cos(w*dt)-1)/w],
                        [(1-math.cos(w*dt))/w, math.sin(w*dt)/w]]
@@ -53,6 +49,7 @@ class EKF:
         F[2,4] = -dt*math.sin(w*dt)*xdot - dt*math.cos(w*dt)*ydot
         F[3,4] = dt*math.cos(dt*w)*xdot - dt*math.sin(w*dt)*ydot
         F[4,4] = 1 # beta=1 for weiner process model for omega
+        self.F = F
         
         # L: process noise gain matrix
         L = np.zeros((5,3))
@@ -61,51 +58,81 @@ class EKF:
         L[2,0] = dt
         L[3,1] = dt
         L[4,2] = 1
+        self.L = L
         
         # process noise w covariance matrix
-        Q = np.diag([self.sigma_x**2, self.sigma_y**2, self.sigma_xdot**2, self.sigma_ydot**2, self.sigma_w**2])
-        
-        # measurement noise covariance matrix
-        R = np.diag([self.sigma_r**2, self.sigma_theta**2])
-
-        # define linearized output matrix H
-        H = np.array([
-            [x/math.sqrt(x**2 + y**2), y/math.sqrt(x**2 + y**2)],
-            [1/(y + x**2/y), -1/(x**2 + x**4/y**2)]
-                ])
+        self.Q = np.diag([self.sigma_x**2, self.sigma_y**2, self.sigma_xdot**2, self.sigma_ydot**2, self.sigma_w**2])
+        self.Q = np.diag([self.sigma_xdot**2, self.sigma_ydot**2, self.sigma_w**2])
         
         # measurement noise gain matrix M
-        M = np.eye(2)
+        self.M = np.eye(2)
         
-        # ------- update equations: --------------------------------------------
+    def predict(self, dt):
+        # ------- predict/update equations: --------------------------------------------
         # update P_hat to apriori covariance estimate P_k|k-1
         # consider joseph form of covariance update equation because covariance is always symmetric positive definite by definition
-        self.p_hat = F @ self.p_hat @ F.T + L @ Q @ L.T
+        self.p_hat = self.F @ self.p_hat @ self.F.T + self.L @ self.Q @ self.L.T
         self.p_hat = 0.5*(self.p_hat + self.p_hat.T) # enforce symmetry
         
         # update predicted apriori state with nonlinear propogation equation
-        different_F = copy.deepcopy(F)
-        different_F[:4,4] = 0 # unsure if this is the write nonlinear update equation, but its 18.51 in the book
-        self.x_hat = different_F @ self.x_hat
+        F_nonlinear = copy.deepcopy(self.F) # nonlinear update equation is linearized F without omega derivates in column 5
+        F_nonlinear[:4,4] = 0
+        self.x_hat = F_nonlinear @ self.x_hat
         
-        # ------- correct/measurement equations: --------------------------------------------
-        # convert estimated state to expected measurement, compare to sensor measurement
-        y_hat = np.array([math.sqrt(x**2 + y**2), math.atan2(x,y)])
-        innovation = y_measured - y_hat
-       
+        # convert estimated state to expected measurement
+        self.y_hat = np.array([math.sqrt(self.x_hat[0]**2 + self.x_hat[1]**2), math.atan2(self.x_hat[0],self.x_hat[1])])
+    
+    def update_measurement_matrices(self):
+        # breakout current state variables for ease of use in following matrix formations
+        x = self.x_hat[0]
+        y = self.x_hat[1]
+        
+        # measurement noise covariance matrix
+        self.R = np.diag([self.sigma_r**2, self.sigma_theta**2])
+
+        # define linearized output matrix H
+        self.H = np.array([
+            [x/math.sqrt(x**2 + y**2), y/math.sqrt(x**2 + y**2), 0, 0, 0],
+            [1/(y + x**2/y), -1/(x**2 + x**4/y**2), 0, 0, 0]
+                ])
+        
         # innovation covariance noise covariance matrix S
-        S = H @ self.p_hat @ H.T + M @ R @ M.T
+        self.S = self.H @ self.p_hat @ self.H.T + self.M @ self.R @ self.M.T
        
         # Kalman gain matrix
-        K = self.p_hat @ H.T @ np.linalg.inv(S)
+        self.K = self.p_hat @ self.H.T @ np.linalg.inv(self.S)
         
+    def measurement_correct(self, y_measured):
+        # ------- correct/measurement equations: --------------------------------------------
+        # compare expected measurement to sensor measurement
+        innovation = y_measured - self.y_hat
+       
         # posteriori mean state estimate (from apriori state estimate)
-        self.x_hat = self.x_hat + K @ innovation
+        self.x_hat = self.x_hat + self.K @ innovation
         
         # update apriori covariance to posteriori covariance 
-        self.p_hat = self.p_hat - K @ S @ K.T
+        self.p_hat = self.p_hat - self.K @ self.S @ self.K.T
         self.p_hat = 0.5*(self.p_hat + self.p_hat.T) # enforce symmetry
         
+        
+class NN:
+    def findNN(ys, y_hat, S):
+        # returns measurement y that is the nearest neighbor to predicted measurement y_hat
+        # by mahalanobis distance
+        # inputs:
+        #   ys: 2D numpy array. Each row is a measurement detection with columns containing the states
+        #   y_hat: 1D numpy array of the expected measurement, columns are state variables just as in y
+        #   S: innovation covariance matrix
+        # output:
+        #   y: 1D numpy array containing measurement vector that is NN to y_hat
+        yNN = ys[0]
+        mindist = (yNN-y_hat).T @ np.linalg.inv(S) @ (yNN-y_hat)
+        for y in ys:
+            dist = (y-y_hat).T @ np.linalg.inv(S) @ (y-y_hat)
+            if dist < mindist:
+                yNN = y
+        return yNN
+                
         
         
         
