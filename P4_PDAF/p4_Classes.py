@@ -8,7 +8,7 @@ Created on Fri Nov 10 08:32:22 2023
 import numpy as np
 import math
 import copy
-
+from scipy.stats.distributions import chi2
 
 class EKF:
 
@@ -117,6 +117,9 @@ class EKF:
         
 class NN:
     
+    gate_coverage = 0.95
+    gate_criteria = chi2.ppf(gate_coverage, df=2)
+    
     def runNNEKF(ekf, dt, ranges, bearings):
         # input:
         #   ekf: already initialized ekf class
@@ -140,8 +143,10 @@ class NN:
         # find NN measurement
         yNN = NN.findNN(ys, y_hat, S)
         
-        # run EKF measurement/correct step with yNN
-        ekf.measurement_correct(yNN)
+        # run EKF measurement/correct step with yNN if yNN exists (y inside gating criteria exists for time step)
+        if yNN is not None:
+            ekf.measurement_correct(yNN)
+            
         return ekf.x_hat
         
     def findNN(ys, y_hat, S):
@@ -153,15 +158,20 @@ class NN:
         #   S: innovation covariance matrix
         # output:
         #   y: 1D numpy array containing measurement vector that is NN to y_hat
+        #   **Note: if no ys in measurement gate, y is returned None
         yNN = ys[0]
         mindist = (yNN-y_hat).T @ np.linalg.inv(S) @ (yNN-y_hat)
         for y in ys:
             dist = (y-y_hat).T @ np.linalg.inv(S) @ (y-y_hat)
             if dist < mindist:
                 yNN = y
-        return yNN
-    
-                
         
+        # debug print
+        print(f'yNN: {yNN}, y_hat: {y_hat}, dist: {mindist}')
         
+        # gate 
+        if mindist < NN.gate_criteria:
+            return yNN
+        else:
+            return None
         

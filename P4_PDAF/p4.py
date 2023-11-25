@@ -20,11 +20,6 @@ from p4_Classes import EKF, NN
 import os
 import copy
 
-a = np.array([1,2,3,4,5])
-b = np.array([2,4,6,8,10])
-fig, ax = plt.subplots()
-ax.plot(a,b)
-
 # Load csv files into dictionary of data frames
 resource_path = os.path.join(".", "project4_resources")
 filenames = [f for f in os.listdir(resource_path) if f.endswith(".csv")]
@@ -59,14 +54,16 @@ dt = 1/1  # measurements taken at 1 Hz
 
 for i in range(datalength):
 
-    bearings = dataframes['bearings_clean'].iloc[i, :].dropna()
-    ranges = dataframes['ranges_clean'].iloc[i, :].dropna()
-    xs_cleanEKF[i,:] = NN.runNNEKF(ekf_clean, dt, ranges, bearings)
-    '''
-    clutter_bearings = dataframes['bearings_clutter'].iloc[i, :].dropna()
-    clutter_ranges = dataframes['ranges_clutter'].iloc[i, :].dropna()
-    xs_clutterEKF[i,:] = NN.runNNEKF(ekf_clutter, dt, ranges, bearings)
-    '''
+    # run clean EKF
+    print(f'{i} clean/cluttered:')
+    bearings_clean = dataframes['bearings_clean'].iloc[i, :].dropna()
+    ranges_clean = dataframes['ranges_clean'].iloc[i, :].dropna()
+    xs_cleanEKF[i,:] = NN.runNNEKF(ekf_clean, dt, ranges_clean, bearings_clean)
+    
+    # run cluttered EKF
+    bearings_clutter = dataframes['bearings_clutter'].iloc[i, :].dropna()
+    ranges_clutter = dataframes['ranges_clutter'].iloc[i, :].dropna()
+    xs_clutterEKF[i,:] = NN.runNNEKF(ekf_clutter, dt, ranges_clutter, bearings_clutter)
     
     # call PDAF
 
@@ -87,12 +84,12 @@ for i in range(datalength):
 fig, ax = plt.subplots()
 ax.plot(dataframes['truth'].iloc[:, 0],
         dataframes['truth'].iloc[:, 2], 'r', label='truth')
-#ax.scatter(measures[:,0], measures[:,1], marker='o',s=1, color='b')
-#ax.plot(xs_cleanEKF[:,0], xs_cleanEKF[:,1], 'b', label='clean NN EKF')
-#ax.plot(xs_clutterEKF[:,0], xs_clutterEKF[:,1], 'g', label='cluttered NN EKF')
-#ax.set(xlabel = 'x, m', ylabel = 'y, m',
- #      title = 'xy plane track trajectory')
-#ax.legend()
+ax.scatter(measures[:,0], measures[:,1], marker='o',s=1, color='b')
+ax.plot(xs_cleanEKF[:,0], xs_cleanEKF[:,1], 'b', label='clean NN EKF')
+ax.plot(xs_clutterEKF[:,0], xs_clutterEKF[:,1], 'g', label='cluttered NN EKF')
+ax.set(xlabel = 'x, m', ylabel = 'y, m',
+      title = 'xy plane track trajectory')
+ax.legend()
 plt.grid(True)
 
 # Plot the transformed range and bearing measurements to the position domain overlaid with the true and estimated 𝑥 and 𝑦 position vs. time
