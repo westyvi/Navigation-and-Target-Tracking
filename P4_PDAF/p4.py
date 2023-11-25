@@ -39,6 +39,8 @@ w = math.radians(2)  # rad/s
 x0 = np.array([xpos, ypos, xdot, ydot, w])  # initial state vector
 xs_cleanEKF = np.zeros((datalength, x0.shape[0])) # empty 2D array to log all state vectors through time
 xs_clutterEKF = np.zeros((datalength, x0.shape[0]))
+xs_cleanPDAF  = np.zeros((datalength, x0.shape[0]))
+xs_clutterPDAF = np.zeros((datalength, x0.shape[0]))
 
 # initialize EKF
 sigma_x = 10  # x uncertainty, m
@@ -69,11 +71,9 @@ for i in range(datalength):
 
 
 
-# plot results for cluttered sensor data with missed detections
-
+# plot results for cluttered sensor data with missed detections:
 
 # plot estimated xy plane track trajectory for positive y
-
 # first, convert clean sensor data to state to plot as points to compare to EKF performance
 measures = np.zeros((datalength, 2)) # x,y 
 for i in range(datalength):
@@ -93,6 +93,46 @@ ax.set(xlabel = 'x, m', ylabel = 'y, m',
 ax.legend()
 plt.grid(True)
 
+
 # Plot the transformed range and bearing measurements to the position domain overlaid with the true and estimated 𝑥 and 𝑦 position vs. time
+fig, (ax1, ax2) = plt.subplots(2, 1)
+fig.suptitle("Position vs time")
+ax1.plot(dataframes['truth'].iloc[:, 0], 'r', label='truth')
+ax1.plot(xs_clutterEKF[:,0], 'g', label='cluttered NN EKF')
+ax1.plot(xs_clutterPDAF[:,0], 'b', label='cluttered PDAF')
+ax1.set(xlabel="Time (s)")
+ax1.set(ylabel="x_pos (m)")
+
+ax2.plot(dataframes['truth'].iloc[:, 2], 'r', label='truth')
+ax2.plot(xs_clutterEKF[:,1], 'g', label='cluttered NN EKF')
+ax1.plot(xs_clutterPDAF[:,1], 'b', label='cluttered PDAF')
+ax2.plot()
+ax2.set(xlabel="Time (s)")
+ax2.set(ylabel="y_pos (m)")
+fig.legend()
+
 # Plot the true and estimated 𝑥 and 𝑦 velocity vs. time
+fig, (ax1, ax2) = plt.subplots(2, 1)
+fig.suptitle("Velocity vs time")
+ax1.plot(dataframes['truth'].iloc[:, 1], 'r', label='truth')
+ax1.plot(xs_clutterEKF[:,2], 'g', label='cluttered NN EKF')
+ax1.plot(xs_clutterPDAF[:,2], 'b', label='cluttered PDAF')
+ax1.set(xlabel="Time (s)")
+ax1.set(ylabel="v_x (m/s)")
+
+ax2.plot(dataframes['truth'].iloc[:, 3], 'r', label='truth')
+ax2.plot(xs_clutterEKF[:,3], 'g', label='cluttered NN EKF')
+ax1.plot(xs_clutterPDAF[:,3], 'b', label='cluttered PDAF')
+ax2.plot()
+ax2.set(xlabel="Time (s)")
+ax2.set(ylabel="v_y (m/s)")
+fig.legend()
+
 # Plot the true and estimated turn-rate, 𝜔, vs. time
+fig, ax1 = plt.subplots()
+fig.suptitle("Turn rate vs time")
+ax1.plot(dataframes['truth'].iloc[:, 4], 'r', label='truth')
+ax1.plot(xs_clutterEKF[:,4], 'g', label='cluttered NN EKF')
+ax1.plot(xs_clutterPDAF[:,4], 'b', label='cluttered PDAF')
+ax1.set(xlabel="Time (s)")
+ax1.set(ylabel="w (rad/s)")
