@@ -55,7 +55,7 @@ dt = 1/1  # measurements taken at 1 Hz
 for i in range(datalength):
 
     # run clean EKF
-    print(f'{i} clean/cluttered:')
+    #print(f'{i} clean/cluttered:')
     bearings_clean = dataframes['bearings_clean'].iloc[i, :].dropna()
     ranges_clean = dataframes['ranges_clean'].iloc[i, :].dropna()
     xs_cleanEKF[i,:] = NN.runNNEKF(ekf_clean, dt, ranges_clean, bearings_clean)
@@ -65,7 +65,8 @@ for i in range(datalength):
     ranges_clutter = dataframes['ranges_clutter'].iloc[i, :].dropna()
     xs_clutterEKF[i,:] = NN.runNNEKF(ekf_clutter, dt, ranges_clutter, bearings_clutter)
     
-    # call PDAF
+    # run clean PDAF
+
 
 
 # plot results for cluttered sensor data with missed detections

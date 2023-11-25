@@ -9,6 +9,7 @@ import numpy as np
 import math
 import copy
 from scipy.stats.distributions import chi2
+import scipy.stats as stats
 
 class EKF:
 
@@ -26,8 +27,6 @@ class EKF:
         # init measurement model uncertainty parameters 
         self.sigma_r = 10 # range uncertainty, m
         self.sigma_theta = math.radians(2) # bearing uncertainty, rad
-        self.Pd = 0.9 # probability of detection
-        self.gamma_c = 0.0032 # Poisson clutter spatial density
         
     def update_predict_matrices(self, dt):
        
@@ -114,6 +113,67 @@ class EKF:
         self.p_hat = self.p_hat - self.K @ self.S @ self.K.T
         self.p_hat = 0.5*(self.p_hat + self.p_hat.T) # enforce symmetry
         
+class PDAF(EKF):
+    def __init__(self):
+        super().__init__() 
+        
+        # define additional statistics for PDAF
+        self.Pd = 0.9 # probability of detection
+        self.gamma_c = 0.0032 # Poisson clutter spatial density
+        self.Pg = 0.95 # gate probability
+    
+    def measurement_correct(self, ys_measured):
+        # ys_measured is already gated
+        # ys_measured is a 2d array with rows of measurement vectors
+        # if no ys_measured in gate, skip measurement_correct step
+        
+        # calculate likelihoods of all gated measurements
+        data_association_probabilities = np.zeros(ys_measured.shape[0])
+        likelihoods = np.zeros(ys_measured.shape[0])
+        i = 0
+        for y in ys_measured:
+            c = 1/self.gamma_c
+            measurement_gaussian = stats.multivariate_normal(mean=self.y_hat, cov=self.S)
+            likelihoods[i] = c*self.Pd*measurement_gaussian.pdf(y) # FIXME check this
+            i += 1
+            
+        # sum all likelihoods within the gate
+        total_likelihood = np.sum(likelihoods)
+        
+        # calculate data association probabilities
+        i = 0
+        for y in ys_measured:
+            num = likelihoods[i]
+            den = 1 - self.Pd*self.Pg + total_likelihood
+            data_association_probabilities[i] = num/den
+            i += 1
+        no_target_probability = (1-self.Pd*self.Pg)/(1-self.Pd*self.Pg+total_likelihood)
+        
+        # calculate probability-averaged innovation
+        innovation = 0
+        i = 0
+        for prob in data_association_probabilities:
+            innovation += prob*(ys_measured[i] - self.y_hat)
+        
+        # posteriori mean state estimate
+        self.x_hat = self.x_hat + self.K @ innovation
+        
+        # calculate uncertainty in which measurement is correct for covariance update
+        measurement_uncertainty_sum = 0
+        i = 0
+        for prob in data_association_probabilities:
+            measurement_uncertainty_sum += (prob*(ys_measured[i] - self.y_hat)
+                                            @ (ys_measured[i] - self.y_hat).T
+                                            - innovation @ innovation.T)
+            i += 1
+            
+        # update apriori covariance to posteriori covariance 
+        self.p_hat = ((1 - no_target_probability)*(self.p_hat - self.K @ self.S @ self.K.T)
+                    + no_target_probability * self.p_hat
+                    + self.K @ (measurement_uncertainty_sum) @ self.K.T)
+        
+        # enforce symmetry
+        self.p_hat = 0.5*(self.p_hat + self.p_hat.T) 
         
 class NN:
     
@@ -134,8 +194,8 @@ class NN:
         ekf.update_predict_matrices(dt)
         ekf.predict(dt)
         ekf.update_measurement_matrices()
-        S = copy.deepcopy(ekf.S) # FIXME make sure I don't need a deep copy here
-        y_hat = copy.deepcopy(ekf.y_hat) # FIXME or here
+        S = ekf.S
+        y_hat = ekf.y_hat
         
         # sort measurements into rows of measurement vector pairs to pass into NN
         ys = np.array([ranges.to_numpy(),bearings.to_numpy()]).T
@@ -167,9 +227,10 @@ class NN:
                 yNN = y
         
         # debug print
-        print(f'yNN: {yNN}, y_hat: {y_hat}, dist: {mindist}')
+        #print(f'yNN: {yNN}, y_hat: {y_hat}, dist: {mindist}')
         
         # gate 
+        # mahalanobis distance is chi2 distributed, so define chi2 gating criteria in class NN
         if mindist < NN.gate_criteria:
             return yNN
         else:
