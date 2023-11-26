@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import math
 from matplotlib import pyplot as plt
-from p4_Classes import EKF, NN
+from p4_Classes import EKF, NN, PDAF
 import os
 import copy
 
@@ -52,9 +52,12 @@ P0 = np.diag([sigma_x**2, sigma_y**2, sigma_xdot **
              2, sigma_ydot**2, sigma_w**2])
 ekf_clean = EKF(x0, P0)
 ekf_clutter = EKF(copy.deepcopy(x0), copy.deepcopy(P0))
+pdaf_clean = PDAF(copy.deepcopy(x0), copy.deepcopy(P0))
+pdaf_clutter = PDAF(copy.deepcopy(x0), copy.deepcopy(P0))
 dt = 1/1  # measurements taken at 1 Hz
 
 for i in range(datalength):
+    print(i)
 
     # run clean EKF
     #print(f'{i} clean/cluttered:')
@@ -68,7 +71,12 @@ for i in range(datalength):
     xs_clutterEKF[i,:] = NN.runNNEKF(ekf_clutter, dt, ranges_clutter, bearings_clutter)
     
     # run clean PDAF
+    xs_cleanPDAF[i,:] = pdaf_clean.runPDAF(dt, ranges_clean, bearings_clean)
+    #print(pdaf_clean.p_hat-ekf_clean.p_hat)
 
+    # run cluttered PDAF
+    xs_clutterPDAF[i,:] = pdaf_clutter.runPDAF(dt, ranges_clutter, bearings_clutter)
+    
 
 
 # plot results for cluttered sensor data with missed detections:
@@ -88,6 +96,9 @@ ax.plot(dataframes['truth'].iloc[:, 0],
 ax.scatter(measures[:,0], measures[:,1], marker='o',s=1, color='b')
 ax.plot(xs_cleanEKF[:,0], xs_cleanEKF[:,1], 'b', label='clean NN EKF')
 ax.plot(xs_clutterEKF[:,0], xs_clutterEKF[:,1], 'g', label='cluttered NN EKF')
+ax.plot(xs_cleanPDAF[:,0],xs_cleanPDAF[:,1], 'c', label='clean PDAF')
+ax.plot(xs_clutterPDAF[:,0],xs_clutterPDAF[:,1], 'y', label='cluttered PDAF')
+
 ax.set(xlabel = 'x, m', ylabel = 'y, m',
       title = 'xy plane track trajectory')
 ax.legend()
@@ -100,12 +111,14 @@ fig.suptitle("Position vs time")
 ax1.plot(dataframes['truth'].iloc[:, 0], 'r', label='truth')
 ax1.plot(xs_clutterEKF[:,0], 'g', label='cluttered NN EKF')
 ax1.plot(xs_clutterPDAF[:,0], 'b', label='cluttered PDAF')
+ax1.plot(xs_cleanPDAF[:,0], 'c', label='clean PDAF')
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="x_pos (m)")
 
-ax2.plot(dataframes['truth'].iloc[:, 2], 'r', label='truth')
-ax2.plot(xs_clutterEKF[:,1], 'g', label='cluttered NN EKF')
-ax1.plot(xs_clutterPDAF[:,1], 'b', label='cluttered PDAF')
+ax2.plot(dataframes['truth'].iloc[:, 2], 'r')
+ax2.plot(xs_clutterEKF[:,1], 'g')
+ax2.plot(xs_clutterPDAF[:,1], 'b')
+ax2.plot(xs_cleanPDAF[:,1], 'c')
 ax2.plot()
 ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="y_pos (m)")
@@ -117,12 +130,14 @@ fig.suptitle("Velocity vs time")
 ax1.plot(dataframes['truth'].iloc[:, 1], 'r', label='truth')
 ax1.plot(xs_clutterEKF[:,2], 'g', label='cluttered NN EKF')
 ax1.plot(xs_clutterPDAF[:,2], 'b', label='cluttered PDAF')
+ax1.plot(xs_cleanPDAF[:,2], 'c', label='clean PDAF')
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="v_x (m/s)")
 
-ax2.plot(dataframes['truth'].iloc[:, 3], 'r', label='truth')
-ax2.plot(xs_clutterEKF[:,3], 'g', label='cluttered NN EKF')
-ax1.plot(xs_clutterPDAF[:,3], 'b', label='cluttered PDAF')
+ax2.plot(dataframes['truth'].iloc[:, 3], 'r')
+ax2.plot(xs_clutterEKF[:,3], 'g' )
+ax2.plot(xs_clutterPDAF[:,3], 'b')
+ax2.plot(xs_cleanPDAF[:,3], 'c')
 ax2.plot()
 ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="v_y (m/s)")
@@ -134,5 +149,7 @@ fig.suptitle("Turn rate vs time")
 ax1.plot(dataframes['truth'].iloc[:, 4], 'r', label='truth')
 ax1.plot(xs_clutterEKF[:,4], 'g', label='cluttered NN EKF')
 ax1.plot(xs_clutterPDAF[:,4], 'b', label='cluttered PDAF')
+ax1.plot(xs_cleanPDAF[:,4], 'c', label='clean PDAF')
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="w (rad/s)")
+fig.legend()

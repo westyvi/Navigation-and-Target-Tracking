@@ -97,6 +97,9 @@ class EKF:
         
         # innovation covariance noise covariance matrix S
         self.S = self.H @ self.p_hat @ self.H.T + self.M @ self.R @ self.M.T
+        
+        # enforece symmetry 
+        self.S = 0.5*(self.S + self.S.T)
        
         # Kalman gain matrix
         self.K = self.p_hat @ self.H.T @ np.linalg.inv(self.S)
@@ -105,6 +108,7 @@ class EKF:
         # ------- correct/measurement equations: --------------------------------------------
         # compare expected measurement to sensor measurement
         innovation = y_measured - self.y_hat
+        print(f'EKF innovation: {innovation}')
        
         # posteriori mean state estimate (from apriori state estimate)
         self.x_hat = self.x_hat + self.K @ innovation
@@ -114,13 +118,50 @@ class EKF:
         self.p_hat = 0.5*(self.p_hat + self.p_hat.T) # enforce symmetry
         
 class PDAF(EKF):
-    def __init__(self):
-        super().__init__() 
+    def __init__(self, x0, P0):
+        super().__init__(x0, P0) 
         
         # define additional statistics for PDAF
         self.Pd = 0.9 # probability of detection
         self.gamma_c = 0.0032 # Poisson clutter spatial density
         self.Pg = 0.95 # gate probability
+        self.gate_criteria = chi2.ppf(self.Pg, df=2)
+        
+    def runPDAF(self, dt, ranges, bearings):
+        # input:
+        #   ekf: already initialized ekf class
+        #   dt: time step
+        #   ranges: data series of ranges for time step. Each column is a detection
+        #   bearings: data series of bearings. Each  column is a detection
+        # output:
+        #   state vector at current time step
+        
+        # call EKF with nearest neighbor association
+        # run EKF propogation and measurement matrix calculation
+        self.update_predict_matrices(dt)
+        self.predict(dt)
+        self.update_measurement_matrices()
+        
+        # sort measurements into rows of measurement vector pairs to pass into NN
+        ys = np.array([ranges.to_numpy(),bearings.to_numpy()]).T
+        
+        # find measurements inside gate
+        ys_gated = self.gate(ys)
+        
+        # if >= 1 gated measurement, run measurement update
+        if ys_gated.shape[0] >= 1:
+            self.measurement_correct(ys_gated)
+            
+        return self.x_hat
+        
+    def gate(self, ys_measured):
+        # given a 2d array of detection vectors ys_measured,
+        # returns all detections inside gating criteria according to mahalanobis distance
+        ys_gated = np.empty((0,2))
+        for y in ys_measured:
+            if (y-self.y_hat).T @ np.linalg.inv(self.S) @ (y-self.y_hat) < self.gate_criteria:
+                ys_gated = np.vstack((ys_gated,y))
+        return ys_gated
     
     def measurement_correct(self, ys_measured):
         # ys_measured is already gated
@@ -131,9 +172,9 @@ class PDAF(EKF):
         data_association_probabilities = np.zeros(ys_measured.shape[0])
         likelihoods = np.zeros(ys_measured.shape[0])
         i = 0
+        c = 1/self.gamma_c
+        measurement_gaussian = stats.multivariate_normal(mean=self.y_hat, cov=self.S)
         for y in ys_measured:
-            c = 1/self.gamma_c
-            measurement_gaussian = stats.multivariate_normal(mean=self.y_hat, cov=self.S)
             likelihoods[i] = c*self.Pd*measurement_gaussian.pdf(y) # FIXME check this
             i += 1
             
@@ -157,6 +198,7 @@ class PDAF(EKF):
         
         # posteriori mean state estimate
         self.x_hat = self.x_hat + self.K @ innovation
+        print(f'pdaf innovation: {innovation}')
         
         # calculate uncertainty in which measurement is correct for covariance update
         measurement_uncertainty_sum = 0
@@ -168,10 +210,13 @@ class PDAF(EKF):
             i += 1
             
         # update apriori covariance to posteriori covariance 
+        ekfp_hat = self.p_hat - self.K @ self.S @ self.K.T # FIXME stolen from ekf
+        
+        # FIXME error is here; overriding P to ekf_phat makes pdaf function
         self.p_hat = ((1 - no_target_probability)*(self.p_hat - self.K @ self.S @ self.K.T)
                     + no_target_probability * self.p_hat
-                    + self.K @ (measurement_uncertainty_sum) @ self.K.T)
-        
+                    + self.K * (measurement_uncertainty_sum) @ self.K.T)
+        self.p_hat = ekfp_hat
         # enforce symmetry
         self.p_hat = 0.5*(self.p_hat + self.p_hat.T) 
         
