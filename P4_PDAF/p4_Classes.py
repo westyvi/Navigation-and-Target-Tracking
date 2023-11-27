@@ -92,7 +92,7 @@ class EKF:
         # define linearized output matrix H
         self.H = np.array([
             [x/math.sqrt(x**2 + y**2), y/math.sqrt(x**2 + y**2), 0, 0, 0],
-            [1/(y + x**2/y), -1/(x**2 + x**4/y**2), 0, 0, 0]
+            [1/(y + x**2/y), -x/(x**2 + y**2), 0, 0, 0]
                 ])
         
         # innovation covariance noise covariance matrix S
@@ -108,7 +108,7 @@ class EKF:
         # ------- correct/measurement equations: --------------------------------------------
         # compare expected measurement to sensor measurement
         innovation = y_measured - self.y_hat
-        print(f'EKF innovation: {innovation}')
+        #print(f'EKF innovation: {innovation}')
        
         # posteriori mean state estimate (from apriori state estimate)
         self.x_hat = self.x_hat + self.K @ innovation
@@ -198,7 +198,7 @@ class PDAF(EKF):
         
         # posteriori mean state estimate
         self.x_hat = self.x_hat + self.K @ innovation
-        print(f'pdaf innovation: {innovation}')
+        #print(f'pdaf innovation: {innovation}')
         
         # calculate uncertainty in which measurement is correct for covariance update
         measurement_uncertainty_sum = 0
@@ -208,7 +208,7 @@ class PDAF(EKF):
                                             @ (ys_measured[i] - self.y_hat).T
                                             - innovation @ innovation.T)
             i += 1
-            
+        
         # update apriori covariance to posteriori covariance 
         ekfp_hat = self.p_hat - self.K @ self.S @ self.K.T # FIXME stolen from ekf
         
@@ -270,6 +270,7 @@ class NN:
             dist = (y-y_hat).T @ np.linalg.inv(S) @ (y-y_hat)
             if dist < mindist:
                 yNN = y
+                mindist = dist
         
         # debug print
         #print(f'yNN: {yNN}, y_hat: {y_hat}, dist: {mindist}')
