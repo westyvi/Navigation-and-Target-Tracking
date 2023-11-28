@@ -63,7 +63,7 @@ for i in range(datalength):
     #print(f'{i} clean/cluttered:')
     bearings_clean = dataframes['bearings_clean'].iloc[i, :].dropna()
     ranges_clean = dataframes['ranges_clean'].iloc[i, :].dropna()
-    xs_cleanEKF[i,:] = NN.runNNEKF(ekf_clean, dt, ranges_clean, bearings_clean)
+    #xs_cleanEKF[i,:] = NN.runNNEKF(ekf_clean, dt, ranges_clean, bearings_clean)
     
     # run cluttered EKF
     bearings_clutter = dataframes['bearings_clutter'].iloc[i, :].dropna()
@@ -75,9 +75,8 @@ for i in range(datalength):
     #print(pdaf_clean.p_hat-ekf_clean.p_hat)
 
     # run cluttered PDAF
-    #xs_clutterPDAF[i,:] = pdaf_clutter.runPDAF(dt, ranges_clutter, bearings_clutter)
+    xs_clutterPDAF[i,:] = pdaf_clutter.runPDAF(dt, ranges_clutter, bearings_clutter)
     
-
 
 # plot results for cluttered sensor data with missed detections:
 
@@ -103,7 +102,7 @@ ax.set(xlabel = 'x, m', ylabel = 'y, m',
       title = 'xy plane track trajectory')
 ax.legend()
 plt.grid(True)
-ax.set_aspect('equal', 'box')
+#ax.set_aspect('equal', 'box')
 
 
 # Plot the transformed range and bearing measurements to the position domain overlaid with the true and estimated 𝑥 and 𝑦 position vs. time

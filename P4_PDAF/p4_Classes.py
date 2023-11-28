@@ -9,6 +9,7 @@ import numpy as np
 import math
 import copy
 from scipy.stats.distributions import chi2
+import scipy.linalg as la
 import scipy.stats as stats
 
 class EKF:
@@ -100,6 +101,11 @@ class EKF:
         
         # enforece symmetry 
         self.S = 0.5*(self.S + self.S.T)
+        
+        # enforce positive semidefinite
+        self.S = la.sqrtm(self.S.T @ self.S)
+        _ = np.linalg.pinv(self.S)
+        self.S = np.linalg.pinv(_)
        
         # Kalman gain matrix
         self.K = self.p_hat @ self.H.T @ np.linalg.inv(self.S)
@@ -151,6 +157,8 @@ class PDAF(EKF):
         # if >= 1 gated measurement, run measurement update
         if ys_gated.shape[0] >= 1:
             self.measurement_correct(ys_gated)
+        else:
+            print('pdaf missed')
             
         return self.x_hat
         
@@ -173,6 +181,7 @@ class PDAF(EKF):
         likelihoods = np.zeros(ys_measured.shape[0])
         i = 0
         c = 1/self.gamma_c
+        print(self.S)
         measurement_gaussian = stats.multivariate_normal(mean=self.y_hat, cov=self.S)
         for y in ys_measured:
             likelihoods[i] = c*self.Pd*measurement_gaussian.pdf(y) # FIXME check this
@@ -198,25 +207,23 @@ class PDAF(EKF):
         
         # posteriori mean state estimate
         self.x_hat = self.x_hat + self.K @ innovation
-        #print(f'pdaf innovation: {innovation}')
         
         # calculate uncertainty in which measurement is correct for covariance update
         measurement_uncertainty_sum = 0
         i = 0
         for prob in data_association_probabilities:
-            measurement_uncertainty_sum += (prob*(ys_measured[i] - self.y_hat)
-                                            @ (ys_measured[i] - self.y_hat).T
-                                            - innovation @ innovation.T)
+            # investigate: making this dot product instead of outer product causes 
+            # ignorance of measurements and a perfectly circular path. Why?
+            measurement_uncertainty_sum += (
+                np.outer((prob*(ys_measured[i] - self.y_hat)), (ys_measured[i] - self.y_hat)))
             i += 1
+        measurement_uncertainty_sum -= np.outer(innovation, innovation.T)
         
         # update apriori covariance to posteriori covariance 
-        ekfp_hat = self.p_hat - self.K @ self.S @ self.K.T # FIXME stolen from ekf
-        
-        # FIXME error is here; overriding P to ekf_phat makes pdaf function
         self.p_hat = ((1 - no_target_probability)*(self.p_hat - self.K @ self.S @ self.K.T)
                     + no_target_probability * self.p_hat
-                    + self.K * (measurement_uncertainty_sum) @ self.K.T)
-        self.p_hat = ekfp_hat
+                    + self.K @ (measurement_uncertainty_sum) @ self.K.T)
+        
         # enforce symmetry
         self.p_hat = 0.5*(self.p_hat + self.p_hat.T) 
         
@@ -277,8 +284,10 @@ class NN:
         
         # gate 
         # mahalanobis distance is chi2 distributed, so define chi2 gating criteria in class NN
+        #print(mindist)
         if mindist < NN.gate_criteria:
             return yNN
         else:
+            #print('missed')
             return None
         
