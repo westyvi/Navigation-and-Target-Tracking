@@ -25,6 +25,13 @@ class EKF:
         self.sigma_ydot = 5 # ydot uncertainty, m/s
         self.sigma_w = math.radians(2) # omega uncertainty, rad/s
         
+        # play with gains for educational purposes
+        '''self.sigma_xdot = .3 # xdot uncertainty, m/s
+        self.sigma_ydot = .3 # ydot uncertainty, m/s
+        self.sigma_w = math.radians(.5) # omega uncertainty, rad/s
+        self.sigma_r = 20
+        self.sigma_theta = math.radians(10)'''
+        
         # init measurement model uncertainty parameters 
         self.sigma_r = 10 # range uncertainty, m
         self.sigma_theta = math.radians(2) # bearing uncertainty, rad
@@ -61,7 +68,6 @@ class EKF:
         self.L = L
         
         # process noise w covariance matrix
-        self.Q = np.diag([self.sigma_x**2, self.sigma_y**2, self.sigma_xdot**2, self.sigma_ydot**2, self.sigma_w**2])
         self.Q = np.diag([self.sigma_xdot**2, self.sigma_ydot**2, self.sigma_w**2])
         
         # measurement noise gain matrix M
@@ -158,7 +164,8 @@ class PDAF(EKF):
         if ys_gated.shape[0] >= 1:
             self.measurement_correct(ys_gated)
         else:
-            print('pdaf missed')
+            #print('pdaf missed')
+            pass
             
         return self.x_hat
         
@@ -181,7 +188,6 @@ class PDAF(EKF):
         likelihoods = np.zeros(ys_measured.shape[0])
         i = 0
         c = 1/self.gamma_c
-        print(self.S)
         measurement_gaussian = stats.multivariate_normal(mean=self.y_hat, cov=self.S)
         for y in ys_measured:
             likelihoods[i] = c*self.Pd*measurement_gaussian.pdf(y) # FIXME check this
