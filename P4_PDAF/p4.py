@@ -58,27 +58,27 @@ dt = 1/1  # measurements taken at 1 Hz
 
 for i in range(datalength):
     print(i)
-
-    # run clean EKF
-    #print(f'{i} clean/cluttered:')
+    
+    # define clean and cluttered sensor data
     bearings_clean = dataframes['bearings_clean'].iloc[i, :].dropna()
     ranges_clean = dataframes['ranges_clean'].iloc[i, :].dropna()
+    bearings_clutter = dataframes['bearings_clutter'].iloc[i, :].dropna()
+    ranges_clutter = dataframes['ranges_clutter'].iloc[i, :].dropna()
+    
+    # run clean EKF
     #xs_cleanEKF[i,:] = NN.runNNEKF(ekf_clean, dt, ranges_clean, bearings_clean)
     
     # run cluttered EKF
-    bearings_clutter = dataframes['bearings_clutter'].iloc[i, :].dropna()
-    ranges_clutter = dataframes['ranges_clutter'].iloc[i, :].dropna()
     xs_clutterEKF[i,:] = NN.runNNEKF(ekf_clutter, dt, ranges_clutter, bearings_clutter)
     
     # run clean PDAF
     #xs_cleanPDAF[i,:] = pdaf_clean.runPDAF(dt, ranges_clean, bearings_clean)
-    #print(pdaf_clean.p_hat-ekf_clean.p_hat)
-
+   
     # run cluttered PDAF
     xs_clutterPDAF[i,:] = pdaf_clutter.runPDAF(dt, ranges_clutter, bearings_clutter)
     
 
-# plot estimated xy plane track trajectory for positive y
+# plot estimated xy plane track trajectory
 # first, convert clean sensor data to state to plot as points to compare to EKF performance
 measures = np.zeros((datalength, 2)) # x,y 
 for i in range(datalength):
