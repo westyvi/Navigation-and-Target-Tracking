@@ -8,7 +8,6 @@ Created on Fri Nov 10 08:32:22 2023
 import numpy as np
 import math
 import copy
-from scipy.stats.distributions import chi2
 import scipy.linalg as la
 import scipy.stats as stats
 
@@ -169,6 +168,9 @@ class GMPHD():
         self.Ps = 0.99 # probability of survival
         self.kappa = 0.0032 # uniform clutter PHD density
         self.PHD = gaussians
+        self.prune_threshold = 10E-5
+        self.merge_threshold = 4
+        self.max_terms = 100
         
         # init cardinality estimate
         self.N = 0
@@ -188,10 +190,10 @@ class GMPHD():
         
         self.propogate(dt)
         self.correct(ys)
-        
-        #FIXME this to make it work until I make extraction step
-        return 0
-        return self.x_hat
+        self.prune()
+        self.merge()
+        self.cap()
+        return self.extract_states()
         
     def propogate(self, dt):
         # propogate existing guassian elements
@@ -228,11 +230,12 @@ class GMPHD():
             i = 0
             for element in self.PHD:
                 self.KF.update_measurement_matrices(element.m, element.P)
-                y_hat = self.KF.H @ element.m
+                y_hat = self.KF.nonlinear_measurement(element.m)
                 S = self.KF.S
                 measurement_gaussian = stats.multivariate_normal(mean=y_hat, cov=S)
                 likelihoods[i] = self.Pd*element.w
-                likelihoods[i] *= measurement_gaussian.pdf(y) # FIXME check this
+                likelihoods[i] *= measurement_gaussian.pdf(y)
+                i += 1
             
             # create new Gaussian elements based on measurement likelihoods
             i = 0
@@ -242,6 +245,7 @@ class GMPHD():
                 new_element = Gaussian(new_w, new_m, new_P)
                 newGM.append(new_element)
                 sum_new_weights += new_w
+                i += 1
                 
         # correct PHD apriori elements for probability of detection
         for element in self.PHD:
@@ -253,9 +257,81 @@ class GMPHD():
         # update cardinality 
         self.N = self.N*(1-self.Pd) + sum_new_weights
     
+    def prune(self):
+        i = 0
+        for element in self.PHD:
+            if element.w < self.prune_threshold:
+                self.PHD[i] = None
+            i += 1
+        self.PHD = [element for element in self.PHD if element is not None]
+        
+    def merge(self):
+        # PHD must be sorted by weight such that PHD[0] is highest weight; 
+        # make sure prune is called immediately prior
+        
+        # algorithm fills temp list with the merged and left-alone terms
+        new_phd = []
+        self.merge0term(self.PHD, new_phd)
+        
+    def cap(self):
+        # chatGPT recommendation here: learn about how lambdas work later
+        self.PHD = sorted(self.PHD, key=lambda x: x.w)
+        self.PHD = self.PHD[:100]
             
-    def mahalanobis(x1, x2, P1):
+    def mahalanobis(self, x1, x2, P1):
         return (x1-x2).T @ np.linalg.inv(P1) @ (x1-x2)
         
-      
+    def merge0term(self, phd, new_phd):
+        # find terms close enough to merge
+        current_element = phd.pop(0) # pop first element to compare the rest to
+        close_elements = [current_element]
+        indices = []
+        # find close terms
+        i = 0
+        for element in phd: # phd is now all terms except what was PHD[0]
+            if (self.mahalanobis(element.m, current_element.m, current_element.P)) < self.merge_threshold: # FIXME check this is write P
+                indices.append(i)
+            i += 1
+        # add close terms to close elements list
+        for index in indices:
+            close_elements.append(phd[index])
+        # remove close terms from phd
+        phd = [val for indx, val in enumerate(phd) if indx not in indices]
+        
+        if len(close_elements) > 0:
+            merged_w = 0
+            for element in close_elements:
+                merged_w += element.w    
+                
+            merged_m = 0
+            for element in close_elements:
+                merged_m += element.w*element.m
+            merged_m /= merged_w
+            
+            merged_P = 0 
+            for element in close_elements:
+                element.w*(element.P + (merged_m - element.m)@(merged_m - element.m).T)
+            merged_P /= merged_w
+            
+            merged_element = Gaussian(merged_w, merged_m, merged_P)
+            new_phd.append(merged_element)
+            
+        else: # add current element to temp
+            new_phd.append(current_element)
+        
+        if len(phd)>0:
+            self.merge0term(phd, new_phd)
+
+    def extract_states(self):
+        # expects PHD sorted in order of weight; call cap before this 
+        output = []
+        for element in self.PHD:
+            if element.w > 0.5:
+                w_round = round(element.w)
+                for i in range(0,w_round):
+                    output.append(element.m)
+            else:
+                break
+                
+                
       

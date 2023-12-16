@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import math
 from matplotlib import pyplot as plt
-from p5_Classes import EKF, Gaussian, GMPHD
+from p5_Classes import Gaussian, GMPHD
 import os
 import copy
 
@@ -43,14 +43,7 @@ xs = np.zeros((datalength, x0.shape[0], 100))
 
 dt = 1/1  # measurements taken at 1 Hz
 
-i = 0
-bearings = dataframes['bearings'].iloc[i, :].dropna()
-ranges = dataframes['ranges'].iloc[i, :].dropna()
-print(tracker.run(dt, ranges, bearings))
 
-
-
-#%% 
 for i in range(datalength):
     print(i)
     
@@ -58,27 +51,24 @@ for i in range(datalength):
     bearings = dataframes['bearings'].iloc[i, :].dropna()
     ranges = dataframes['ranges'].iloc[i, :].dropna()
    
-    #xs[i,:] = pdaf_clutter.runPDAF(dt, ranges_clutter, bearings_clutter)
+    output = tracker.run(dt, ranges, bearings)
+    if output is not None:
+        for j, state in output:
+            xs[i,:,j] = state
+            
+    print(tracker.run(dt, ranges, bearings))
     
 
-#%% plot estimated xy plane track trajectory
-# first, convert clean sensor data to state to plot as points to compare to EKF performance
-measures = np.zeros((datalength, 2)) # x,y 
-for i in range(datalength):
-    bear = dataframes['bearings_clean'].iloc[i]
-    r = dataframes['ranges_clean'].iloc[i]
-    measures[i,0] = math.sqrt(r**2/(((math.tan(bear))**-2)+1))*math.tan(bear)/abs(math.tan(bear))
-    measures[i,1] = math.sqrt(r**2/(((math.tan(bear))**2)+1))
-    
-# convert cluttered sensor data to xy for plotting
-# Create an empty list to store all x,y coordinates
+#%% plot 
+
+### convert cluttered sensor data to xy for plotting
 xy_coordinates = []
 
 # Iterate through each time step
 for i in range(datalength):
     # Extract range and bearing measurements for the current time step
-    bearing_measurements = dataframes['bearings_clutter'].iloc[i].values[1:]
-    range_measurements = dataframes['ranges_clutter'].iloc[i].values[1:]
+    bearing_measurements = dataframes['bearings'].iloc[i].values[1:]
+    range_measurements = dataframes['ranges'].iloc[i].values[1:]
     
     # Remove NaN values from range and bearing measurements
     mask = ~np.isnan(range_measurements)
@@ -100,39 +90,38 @@ x_coordinates = xy_coordinates[:, 0]
 y_coordinates = xy_coordinates[:, 1]
 ts = xy_coordinates[:,2]
 
+### convert truth data into something plottable
+truth = np.zeros((datalength, x0.shape[0], 100)) 
+for i in range(datalength):
+    states = dataframes['truth'].iloc[i,:].dropna()
+    separated_states = [states[i:i + 5] for i in range(0, len(states), 5)]
+    for j in range(0,len(separated_states)):
+        truth[i,:,j] = separated_states[j]
 
-# plot results for cluttered sensor data with missed detections:
+# plot estimated xy plane track trajectory
 fig, ax = plt.subplots()
-ax.plot(dataframes['truth'].iloc[:, 0],
-        dataframes['truth'].iloc[:, 2], 'r', label='truth')
-#ax.plot(xs_cleanEKF[:,0], xs_cleanEKF[:,1], 'b', label='clean NN EKF')
-ax.plot(xs_clutterEKF[:,0], xs_clutterEKF[:,1], 'g', label='cluttered NN EKF')
-#ax.plot(xs_cleanPDAF[:,0],xs_cleanPDAF[:,1], 'b', label='clean PDAF')
-ax.plot(xs_clutterPDAF[:,0],xs_clutterPDAF[:,1], 'c', label='cluttered PDAF')
-
+for j in range(0,100):
+    ax.plot(xs[:,0,j],xs[:,1,j], 'c', label='cluttered PDAF')
+    ax.plot(truth[:,0,j],truth[:,1,j], 'r', label='truth')
 ax.set(xlabel = 'x, m', ylabel = 'y, m',
       title = 'xy plane track trajectory')
 ax.legend()
 plt.grid(True)
-#ax.scatter(x_coordinates, y_coordinates, s=2, alpha=.2) # cluttered detections
-#ax.scatter(measures[:,0], measures[:,1], marker='o',s=1, color='b') # clean detections
 
 
 # Plot the transformed range and bearing measurements to the position domain overlaid with the true and estimated 𝑥 and 𝑦 position vs. time
 fig, (ax1, ax2) = plt.subplots(2, 1, tight_layout=True, figsize=(8, 5))
 fig.suptitle("Position vs time")
-ax1.plot(dataframes['truth'].iloc[:, 0], 'r', label='truth')
-ax1.plot(xs_clutterEKF[:,0], 'g', label='cluttered NN EKF')
-#ax1.plot(xs_cleanPDAF[:,0], 'b', label='clean PDAF')
-ax1.plot(xs_clutterPDAF[:,0], 'c', label='cluttered PDAF')
+for j in range(0,100):
+    ax.plot(xs[:,0,j], 'c', label='cluttered PDAF')
+    ax.plot(truth[:,0,j], 'r', label='truth')
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="x_pos (m)")
 ax1.scatter(ts, x_coordinates, s=2, alpha=.2)
 
-ax2.plot(dataframes['truth'].iloc[:, 2], 'r')
-ax2.plot(xs_clutterEKF[:,1], 'g')
-#ax2.plot(xs_cleanPDAF[:,1], 'b')
-ax2.plot(xs_clutterPDAF[:,1], 'c')
+for j in range(0,100):
+    ax.plot(xs[:,1,j], 'c', label='cluttered PDAF')
+    ax.plot(truth[:,1,j], 'r', label='truth')
 ax2.plot()
 ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="y_pos (m)")
@@ -142,17 +131,15 @@ ax2.scatter(ts, y_coordinates, s=2, alpha=.2)
 # Plot the true and estimated 𝑥 and 𝑦 velocity vs. time
 fig, (ax1, ax2) = plt.subplots(2, 1)
 fig.suptitle("Velocity vs time")
-ax1.plot(dataframes['truth'].iloc[:, 1], 'r', label='truth')
-ax1.plot(xs_clutterEKF[:,2], 'g', label='cluttered NN EKF')
-#ax1.plot(xs_cleanPDAF[:,2], 'b', label='clean PDAF')
-ax1.plot(xs_clutterPDAF[:,2], 'c', label='cluttered PDAF')
+for j in range(0,100):
+    ax.plot(xs[:,2,j], 'c', label='cluttered PDAF')
+    ax.plot(truth[:,2,j], 'r', label='truth')
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="v_x (m/s)")
 
-ax2.plot(dataframes['truth'].iloc[:, 3], 'r')
-ax2.plot(xs_clutterEKF[:,3], 'g' )
-#ax2.plot(xs_cleanPDAF[:,3], 'b')
-ax2.plot(xs_clutterPDAF[:,3], 'c')
+for j in range(0,100):
+    ax.plot(xs[:,3,j], 'c', label='cluttered PDAF')
+    ax.plot(truth[:,3,j], 'r', label='truth')
 ax2.plot()
 ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="v_y (m/s)")
@@ -161,10 +148,19 @@ fig.legend()
 # Plot the true and estimated turn-rate, 𝜔, vs. time
 fig, ax1 = plt.subplots()
 fig.suptitle("Turn rate vs time")
-ax1.plot(dataframes['truth'].iloc[:, 4], 'r', label='truth')
-ax1.plot(xs_clutterEKF[:,4], 'g', label='cluttered NN EKF')
-#ax1.plot(xs_cleanPDAF[:,4], 'b', label='clean PDAF')
-ax1.plot(xs_clutterPDAF[:,4], 'c', label='cluttered PDAF')
+for j in range(0,100):
+    ax.plot(xs[:,4,j], 'c', label='cluttered PDAF')
+    ax.plot(xs[:,4,j], 'r', label='truth')
+ax1.set(xlabel="Time (s)")
+ax1.set(ylabel="w (rad/s)")
+fig.legend()
+
+
+# Plot the true and estimated cardinality vs. time
+fig, ax1 = plt.subplots()
+fig.suptitle("cardinality vs time")
+for j in range(0,100):
+    ax.plot(xs[:,4,j], 'c', label='cluttered PDAF')
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="w (rad/s)")
 fig.legend()
