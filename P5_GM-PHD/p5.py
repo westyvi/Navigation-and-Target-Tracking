@@ -2,12 +2,11 @@
 """
 Single Target Tracking Project:
     
-    Probability Density Association Filter (PDAF) 
-                        vs
-            EKF with nearest neighbor
+    Guassian Mixture Probability Hypothetiy Density (GM-PHD) 
+                Multi-target tracker
 
 AEM667 - Navigation and Target Tracking
-Project 4
+Project 5
 
 Written by Joey Westermeyer 2023
 """
@@ -16,12 +15,12 @@ import numpy as np
 import pandas as pd
 import math
 from matplotlib import pyplot as plt
-from p4_Classes import EKF, NN, PDAF
+from p5_Classes import EKF, Gaussian, GMPHD
 import os
 import copy
 
 # Load csv files into dictionary of data frames
-resource_path = os.path.join(".", "project4_resources")
+resource_path = os.path.join(".", "project5_resources")
 filenames = [f for f in os.listdir(resource_path) if f.endswith(".csv")]
 dataframes = {}
 for filename in filenames:
@@ -30,55 +29,39 @@ for filename in filenames:
         os.path.join(resource_path, filename), header=None)
 datalength = dataframes['truth'].shape[0]
 
-# intialize target state
-xpos = 500  # m
-xdot = 7.5  # m/s
-ypos = 500  # m
-ydot = 7.5  # m/s
-w = math.radians(2)  # rad/s
-x0 = np.array([xpos, ypos, xdot, ydot, w])  # initial state vector
-xs_cleanEKF = np.zeros((datalength, x0.shape[0])) # empty 2D array to log all state vectors through time
-xs_clutterEKF = np.zeros((datalength, x0.shape[0]))
-xs_cleanPDAF  = np.zeros((datalength, x0.shape[0]))
-xs_clutterPDAF = np.zeros((datalength, x0.shape[0]))
+# intialize PHD with one target with low weight
+x0 = np.array([0.1, 0.1, 0, 0, 0])  # initial state vector
+weight0 = 10E-10
+P0 = np.diag([1,1,1,1, 0.01])
+initialPHD = [Gaussian(weight0, x0, P0)]
+tracker = GMPHD(initialPHD)
 
-# initialize EKF
-sigma_x = 10  # x uncertainty, m
-sigma_y = 10  # y uncertainty, m
-sigma_xdot = 5  # xdot uncertainty, m/s
-sigma_ydot = 5  # ydot uncertainty, m/s
-sigma_w = math.radians(2) # omega uncertainty, rad/s
-P0 = np.diag([sigma_x**2, sigma_y**2, sigma_xdot **
-             2, sigma_ydot**2, sigma_w**2])
-ekf_clean = EKF(x0, P0)
-ekf_clutter = EKF(copy.deepcopy(x0), copy.deepcopy(P0))
-pdaf_clean = PDAF(copy.deepcopy(x0), copy.deepcopy(P0))
-pdaf_clutter = PDAF(copy.deepcopy(x0), copy.deepcopy(P0))
+# create 3D array to log state vectors of all targets through time
+# third dimension is max number of targets for PHD cap step
+# if targets don't exist, the states in this array will remain 0
+xs = np.zeros((datalength, x0.shape[0], 100)) 
+
 dt = 1/1  # measurements taken at 1 Hz
 
+i = 0
+bearings = dataframes['bearings'].iloc[i, :].dropna()
+ranges = dataframes['ranges'].iloc[i, :].dropna()
+print(tracker.run(dt, ranges, bearings))
+
+
+
+#%% 
 for i in range(datalength):
     print(i)
     
     # define clean and cluttered sensor data
-    bearings_clean = dataframes['bearings_clean'].iloc[i, :].dropna()
-    ranges_clean = dataframes['ranges_clean'].iloc[i, :].dropna()
-    bearings_clutter = dataframes['bearings_clutter'].iloc[i, :].dropna()
-    ranges_clutter = dataframes['ranges_clutter'].iloc[i, :].dropna()
-    
-    # run clean EKF
-    #xs_cleanEKF[i,:] = NN.runNNEKF(ekf_clean, dt, ranges_clean, bearings_clean)
-    
-    # run cluttered EKF
-    xs_clutterEKF[i,:] = NN.runNNEKF(ekf_clutter, dt, ranges_clutter, bearings_clutter)
-    
-    # run clean PDAF
-    #xs_cleanPDAF[i,:] = pdaf_clean.runPDAF(dt, ranges_clean, bearings_clean)
+    bearings = dataframes['bearings'].iloc[i, :].dropna()
+    ranges = dataframes['ranges'].iloc[i, :].dropna()
    
-    # run cluttered PDAF
-    xs_clutterPDAF[i,:] = pdaf_clutter.runPDAF(dt, ranges_clutter, bearings_clutter)
+    #xs[i,:] = pdaf_clutter.runPDAF(dt, ranges_clutter, bearings_clutter)
     
 
-# plot estimated xy plane track trajectory
+#%% plot estimated xy plane track trajectory
 # first, convert clean sensor data to state to plot as points to compare to EKF performance
 measures = np.zeros((datalength, 2)) # x,y 
 for i in range(datalength):
@@ -118,7 +101,7 @@ y_coordinates = xy_coordinates[:, 1]
 ts = xy_coordinates[:,2]
 
 
-#%% plot results for cluttered sensor data with missed detections:
+# plot results for cluttered sensor data with missed detections:
 fig, ax = plt.subplots()
 ax.plot(dataframes['truth'].iloc[:, 0],
         dataframes['truth'].iloc[:, 2], 'r', label='truth')

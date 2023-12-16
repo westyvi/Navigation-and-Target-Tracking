@@ -12,7 +12,15 @@ from scipy.stats.distributions import chi2
 import scipy.linalg as la
 import scipy.stats as stats
 
+class Gaussian():
+    def __init__(self, weight, mean, covar):
+        self.w = weight
+        self.m = mean
+        self.P = covar
+        
 class EKF:
+    # EKF class with equations derived for range-bearing sensors tracking 
+    # targets undergoing coordinated turns w/unkown constant turn rates. 
 
     def __init__(self):
         
@@ -36,26 +44,30 @@ class EKF:
         
      # define and assign the update matrices 
      # (at the current state estimate x_hat) as class properties
-    def update_predict_matrices(self, x_hat, dt):
+    def predict(self, x_hat, p_hat, dt):
        
         # breakout current state variables for ease of use in following matrix formations
         xdot = x_hat[2]
         ydot = x_hat[3]
         w = x_hat[4]
         
-        # ------- define EKF propogtion matrices: -----------------------------------------
         # F: discrete-time linearized state matrix
-        F = np.eye(5)
-        F[:2, 2:4] = [[math.sin(w*dt)/w, (math.cos(w*dt)-1)/w],
-                       [(1-math.cos(w*dt))/w, math.sin(w*dt)/w]]
-        F[2:4, 2:4] = [[math.cos(w*dt), -math.sin(w*dt)], [math.sin(w*dt), math.cos(dt*w)]]
-        F[0,4] = ( ((w*dt*math.cos(dt*w)-math.sin(w*dt))/(w**2))*xdot
-                    - (w*dt*math.sin(w*dt) - 1 + math.cos(w*dt))*ydot/(w**2) )
-        F[1,4] = ( ((w*dt*math.sin(dt*w) - 1 + math.cos(w*dt))/(w**2))*xdot
-                    + (w*dt*math.cos(w*dt) - math.sin(w*dt))*ydot/(w**2) )
-        F[2,4] = -dt*math.sin(w*dt)*xdot - dt*math.cos(w*dt)*ydot
-        F[3,4] = dt*math.cos(dt*w)*xdot - dt*math.sin(w*dt)*ydot
-        F[4,4] = 1 # beta=1 for weiner process model for omega
+        if w == 0: # constant velocity, non-turning model
+            F = np.eye(5)
+            F[0,2] = dt
+            F[1,3] = dt
+        else:
+            F = np.eye(5)
+            F[:2, 2:4] = [[math.sin(w*dt)/w, (math.cos(w*dt)-1)/w],
+                           [(1-math.cos(w*dt))/w, math.sin(w*dt)/w]]
+            F[2:4, 2:4] = [[math.cos(w*dt), -math.sin(w*dt)], [math.sin(w*dt), math.cos(dt*w)]]
+            F[0,4] = ( ((w*dt*math.cos(dt*w)-math.sin(w*dt))/(w**2))*xdot
+                        - (w*dt*math.sin(w*dt) - 1 + math.cos(w*dt))*ydot/(w**2) )
+            F[1,4] = ( ((w*dt*math.sin(dt*w) - 1 + math.cos(w*dt))/(w**2))*xdot
+                        + (w*dt*math.cos(w*dt) - math.sin(w*dt))*ydot/(w**2) )
+            F[2,4] = -dt*math.sin(w*dt)*xdot - dt*math.cos(w*dt)*ydot
+            F[3,4] = dt*math.cos(dt*w)*xdot - dt*math.sin(w*dt)*ydot
+            F[4,4] = 1 # beta=1 for weiner process model for omega
         self.F = F
         
         # L: process noise gain matrix
@@ -70,11 +82,10 @@ class EKF:
         # process noise w covariance matrix
         self.Q = np.diag([self.sigma_xdot**2, self.sigma_ydot**2, self.sigma_w**2])
         
-        # measurement noise gain matrix M
-        self.M = np.eye(2)
-        
-    def predict(self, x_hat, p_hat, dt):
+        # merging this function fixed a bug- investigate why later
+    #def predict(self, x_hat, p_hat, dt):
         # receives x_hat, p_hat, dt and propogates. Returns apriori x_hat, p_hat, y_hat
+        #self.update_predict_matrices(self, x_hat, dt)
         
         # update P_hat to apriori covariance estimate P_k|k-1
         # note: consider joseph form of covariance update equation because covariance is always symmetric positive definite by definition
@@ -84,13 +95,16 @@ class EKF:
         # update predicted apriori state with nonlinear propogation equation
         F_nonlinear = copy.deepcopy(self.F) 
         F_nonlinear[:4,4] = 0 # nonlinear update equation is linearized F without omega derivates in column 5
-        x_hat = F_nonlinear @ self.x_hat
+        x_hat = F_nonlinear @ x_hat
         
-        # convert estimated state to expected measurement
-        y_hat = np.array([math.sqrt(x_hat[0]**2 + x_hat[1]**2), math.atan2(x_hat[0],x_hat[1])])
-        
-        return x_hat, p_hat, y_hat
+        return x_hat, p_hat
     
+    def nonlinear_measurement(self, x_hat):
+        # convert estimated state to expected measurement
+       y_hat = np.array([math.sqrt(x_hat[0]**2 + x_hat[1]**2), math.atan2(x_hat[0],x_hat[1])])
+       return y_hat
+      
+        
     def update_measurement_matrices(self, x_hat, p_hat):
         # updates instance's measurement equations (as instance vals) for input x_hat, p_hat
         
@@ -107,6 +121,9 @@ class EKF:
             [1/(y + x**2/y), -x/(x**2 + y**2), 0, 0, 0]
                 ])
         
+        # measurement noise gain matrix M
+        self.M = np.eye(2)
+        
         # innovation covariance noise covariance matrix S
         self.S = self.H @ p_hat @ self.H.T + self.M @ self.R @ self.M.T
         
@@ -121,28 +138,42 @@ class EKF:
         # Kalman gain matrix
         self.K = p_hat @ self.H.T @ np.linalg.inv(self.S)
         
-    def measurement_correct(self, y_measured, x_hat, p_hat, y_hat):
+    def measurement_correct(self, y_measured, x_hat, p_hat):
+        #update measurement matrices
+        self.update_measurement_matrices(x_hat, p_hat)
+        
         # compare expected measurement to sensor measurement
+        y_hat = self.nonlinear_measurement(x_hat)
         innovation = y_measured - y_hat
        
         # posteriori mean state estimate (from apriori state estimate)
-        x_hat = self.x_hat + self.K @ innovation
+        x_hat = x_hat + self.K @ innovation
         
         # update apriori covariance to posteriori covariance 
-        p_hat = self.p_hat - self.K @ self.S @ self.K.T
-        p_hat = 0.5*(self.p_hat + self.p_hat.T) # enforce symmetry
+        p_hat = p_hat - self.K @ self.S @ self.K.T
+        p_hat = 0.5*(p_hat + p_hat.T) # enforce symmetry
         
         return x_hat, p_hat
         
         
-class GMPHD(EKF):
-    def __init__(self, x0, P0):
-        super().__init__() 
+class GMPHD():
+    def __init__(self, gaussians):
+        # input: gaussians is a list of Guassian objects which will form the 
+        # initial Guassian mixture
+    
+        # init EKF to use for propogation and correction of individual Guassians
+        self.KF = EKF()
         
         # define statistics for GM-PHD
         self.Pd = 0.98 # probability of detection
         self.Ps = 0.99 # probability of survival
         self.kappa = 0.0032 # uniform clutter PHD density
+        self.PHD = gaussians
+        
+        # init cardinality estimate
+        self.N = 0
+        for element in gaussians:
+            self.N += element.w
         
     def run(self, dt, ranges, bearings):
         # input:
@@ -152,81 +183,79 @@ class GMPHD(EKF):
         # output:
         #   state vector at current time step
         
-        # call EKF with nearest neighbor association
-        # run EKF propogation and measurement matrix calculation
-        self.update_predict_matrices(dt)
-        self.predict(dt)
-        self.update_measurement_matrices()
-        
-        # sort measurements into rows of measurement vector pairs to pass into NN
+        # define ys with rows of measurement vectors 
         ys = np.array([ranges.to_numpy(),bearings.to_numpy()]).T
         
-        # find measurements inside gate
-        ys_gated = self.gate(ys)
+        self.propogate(dt)
+        self.correct(ys)
         
-        # if >= 1 gated measurement, run measurement update
-        if ys_gated.shape[0] >= 1:
-            self.measurement_correct(ys_gated)
-        else:
-            #print('pdaf missed')
-            pass
-            
+        #FIXME this to make it work until I make extraction step
+        return 0
         return self.x_hat
         
+    def propogate(self, dt):
+        # propogate existing guassian elements
+        for element in self.PHD:
+            element.w *= self.Ps
+            [element.m, element.P] = self.KF.predict(element.m, element.P, dt)
+            
+        # add birth gaussian elements
+        # *could define this in init for greater efficiency
+        # *but putting here allows flexibility if birth model becomes non-constant
+        birthGM = [
+                    Gaussian(0.02, np.array([-1500, 250, 0, 0, 0]), np.diag([2500, 2500, 2500, 2500, 0.0018])),
+                   Gaussian(0.02, np.array([-250, 1000, 0, 0, 0]), np.diag([2500, 2500, 2500, 2500, 0.0018])),
+                   Gaussian(0.03, np.array([250, 750, 0, 0, 0]), np.diag([2500, 2500, 2500, 2500, 0.0018])),
+                   Gaussian(0.03, np.array([1000, 1500, 0, 0, 0]), np.diag([2500, 2500, 2500, 2500, 0.0018]))
+                   ]
+        self.PHD += birthGM
+        
+        # update cardinality estimate
+        birth_weight = 0 
+        for gaussian in birthGM:
+            birth_weight += gaussian.w
+        self.N = self.N*self.Ps + birth_weight
+
+    def correct(self, ys):
+        # ys_measured is a 2d array with rows of measurement vectors
+        
+        # create new gaussian elements to add based on measurements
+        newGM = []
+        sum_new_weights = 0
+        for y in ys:
+            # calculate likelihood this y is detection for each gaussian element
+            likelihoods = np.zeros(len(self.PHD))
+            i = 0
+            for element in self.PHD:
+                self.KF.update_measurement_matrices(element.m, element.P)
+                y_hat = self.KF.H @ element.m
+                S = self.KF.S
+                measurement_gaussian = stats.multivariate_normal(mean=y_hat, cov=S)
+                likelihoods[i] = self.Pd*element.w
+                likelihoods[i] *= measurement_gaussian.pdf(y) # FIXME check this
+            
+            # create new Gaussian elements based on measurement likelihoods
+            i = 0
+            for element in self.PHD:
+                new_w = likelihoods[i] / (self.kappa + sum(likelihoods))
+                [new_m, new_P] = self.KF.measurement_correct(y, element.m, element.P)
+                new_element = Gaussian(new_w, new_m, new_P)
+                newGM.append(new_element)
+                sum_new_weights += new_w
+                
+        # correct PHD apriori elements for probability of detection
+        for element in self.PHD:
+            element.w *= 1-self.Pd
+            
+        # add new elements to PHD
+        self.PHD += newGM
+            
+        # update cardinality 
+        self.N = self.N*(1-self.Pd) + sum_new_weights
+    
+            
     def mahalanobis(x1, x2, P1):
         return (x1-x2).T @ np.linalg.inv(P1) @ (x1-x2)
-             
-    def measurement_correct(self, ys_measured):
-        # ys_measured is already gated
-        # ys_measured is a 2d array with rows of measurement vectors
-        # if no ys_measured in gate, skip measurement_correct step
         
-        # calculate likelihoods of all gated measurements
-        data_association_probabilities = np.zeros(ys_measured.shape[0])
-        likelihoods = np.zeros(ys_measured.shape[0])
-        i = 0
-        c = 1/self.gamma_c
-        measurement_gaussian = stats.multivariate_normal(mean=self.y_hat, cov=self.S)
-        for y in ys_measured:
-            likelihoods[i] = c*self.Pd*measurement_gaussian.pdf(y) # FIXME check this
-            i += 1
-            
-        # sum all likelihoods within the gate
-        total_likelihood = np.sum(likelihoods)
-        
-        # calculate data association probabilities
-        i = 0
-        for y in ys_measured:
-            num = likelihoods[i]
-            den = 1 - self.Pd*self.Pg + total_likelihood
-            data_association_probabilities[i] = num/den
-            i += 1
-        no_target_probability = (1-self.Pd*self.Pg)/(1-self.Pd*self.Pg+total_likelihood)
-        
-        # calculate probability-averaged innovation
-        innovation = 0
-        i = 0
-        for prob in data_association_probabilities:
-            innovation += prob*(ys_measured[i] - self.y_hat)
-        
-        # posteriori mean state estimate
-        self.x_hat = self.x_hat + self.K @ innovation
-        
-        # calculate uncertainty in which measurement is correct for covariance update
-        measurement_uncertainty_sum = 0
-        i = 0
-        for prob in data_association_probabilities:
-            # investigate: making this dot product instead of outer product causes 
-            # ignorance of measurements and a perfectly circular path. Why?
-            measurement_uncertainty_sum += (
-                np.outer((prob*(ys_measured[i] - self.y_hat)), (ys_measured[i] - self.y_hat)))
-            i += 1
-        measurement_uncertainty_sum -= np.outer(innovation, innovation.T)
-        
-        # update apriori covariance to posteriori covariance 
-        self.p_hat = ((1 - no_target_probability)*(self.p_hat - self.K @ self.S @ self.K.T)
-                    + no_target_probability * self.p_hat
-                    + self.K @ (measurement_uncertainty_sum) @ self.K.T)
-        
-        # enforce symmetry
-        self.p_hat = 0.5*(self.p_hat + self.p_hat.T) 
+      
+      
