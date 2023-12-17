@@ -40,6 +40,7 @@ tracker = GMPHD(initialPHD)
 # third dimension is max number of targets for PHD cap step
 # if targets don't exist, the states in this array will remain 0
 xs = np.zeros((datalength, x0.shape[0], 100)) 
+xs[:] = np.nan
 
 dt = 1/1  # measurements taken at 1 Hz
 
@@ -90,19 +91,30 @@ x_coordinates = xy_coordinates[:, 0]
 y_coordinates = xy_coordinates[:, 1]
 ts = xy_coordinates[:,2]
 
+
 ### convert truth data into something plottable
 truth = np.zeros((datalength, x0.shape[0], 100)) 
+truth[:] = np.nan
+true_cardinality = np.zeros(datalength)
+true_cardinality[:] = np.nan
 for i in range(datalength):
     states = dataframes['truth'].iloc[i,:].dropna()
     separated_states = [states[i:i + 5] for i in range(0, len(states), 5)]
+    true_cardinality[i] = len(separated_states)
     for j in range(0,len(separated_states)):
         truth[i,:,j] = separated_states[j]
+truth_time = np.linspace(0, datalength*dt, num=datalength)
 
 # plot estimated xy plane track trajectory
 fig, ax = plt.subplots()
+# j is objects: loop through each potential object, plot it for all time (first index) and one state (middle index)
 for j in range(0,100):
-    ax.plot(xs[:,0,j],xs[:,1,j], 'c', label='cluttered PDAF')
-    ax.plot(truth[:,0,j],truth[:,1,j], 'r', label='truth')
+    if j == 0:
+        #ax.plot(xs[:,0,j],xs[:,1,j], 'c', label='cluttered PDAF')
+        ax.scatter(truth[:,0,j],truth[:,1,j], c='red', s=5, label='truth') 
+    else:
+        ax.scatter(xs[:,0,j],xs[:,1,j], c='cyan', s=5)
+        ax.scatter(truth[:,0,j],truth[:,1,j], c='red', s=5) 
 ax.set(xlabel = 'x, m', ylabel = 'y, m',
       title = 'xy plane track trajectory')
 ax.legend()
@@ -113,33 +125,43 @@ plt.grid(True)
 fig, (ax1, ax2) = plt.subplots(2, 1, tight_layout=True, figsize=(8, 5))
 fig.suptitle("Position vs time")
 for j in range(0,100):
-    ax.plot(xs[:,0,j], 'c', label='cluttered PDAF')
-    ax.plot(truth[:,0,j], 'r', label='truth')
+    ax1.scatter(truth_time, xs[:,0,j], c='cyan')
+    ax1.scatter(truth_time, truth[:,0,j], c='red', s=5)
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="x_pos (m)")
 ax1.scatter(ts, x_coordinates, s=2, alpha=.2)
 
 for j in range(0,100):
-    ax.plot(xs[:,1,j], 'c', label='cluttered PDAF')
-    ax.plot(truth[:,1,j], 'r', label='truth')
+    ax2.scatter(truth_time, xs[:,1,j], c='cyan')
+    ax2.scatter(truth_time, truth[:,1,j], c='red', s=5)
 ax2.plot()
 ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="y_pos (m)")
 fig.legend()
 ax2.scatter(ts, y_coordinates, s=2, alpha=.2)
 
+# Plot the true and estimated cardinality vs. time
+fig, ax1 = plt.subplots()
+fig.suptitle("cardinality vs time")
+ax1.plot(true_cardinality, 'r', label='truth')
+ax1.set(xlabel="Time (s)")
+ax1.set(ylabel="Cardinality")
+fig.legend()
+ax1.set_ylim(bottom=0, top=None)
+
+'''
 # Plot the true and estimated 𝑥 and 𝑦 velocity vs. time
 fig, (ax1, ax2) = plt.subplots(2, 1)
 fig.suptitle("Velocity vs time")
 for j in range(0,100):
-    ax.plot(xs[:,2,j], 'c', label='cluttered PDAF')
-    ax.plot(truth[:,2,j], 'r', label='truth')
+    #ax1.plot(xs[:,2,j], 'c', label='cluttered PDAF')
+    ax1.plot(truth[:,2,j], c='red', s=5)
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="v_x (m/s)")
 
 for j in range(0,100):
-    ax.plot(xs[:,3,j], 'c', label='cluttered PDAF')
-    ax.plot(truth[:,3,j], 'r', label='truth')
+    #ax2.plot(xs[:,3,j], 'c', label='cluttered PDAF')
+    ax2.plot(truth[:,3,j], c='red', s=5)
 ax2.plot()
 ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="v_y (m/s)")
@@ -149,18 +171,10 @@ fig.legend()
 fig, ax1 = plt.subplots()
 fig.suptitle("Turn rate vs time")
 for j in range(0,100):
-    ax.plot(xs[:,4,j], 'c', label='cluttered PDAF')
-    ax.plot(xs[:,4,j], 'r', label='truth')
+    #ax1.plot(xs[:,4,j], 'c', label='cluttered PDAF')
+    ax1.plot(xs[:,4,j], c='red', s=5)
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="w (rad/s)")
 fig.legend()
-
-
-# Plot the true and estimated cardinality vs. time
-fig, ax1 = plt.subplots()
-fig.suptitle("cardinality vs time")
-for j in range(0,100):
-    ax.plot(xs[:,4,j], 'c', label='cluttered PDAF')
-ax1.set(xlabel="Time (s)")
-ax1.set(ylabel="w (rad/s)")
-fig.legend()
+'''
+a = 5
