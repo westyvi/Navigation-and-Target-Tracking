@@ -188,11 +188,11 @@ class GMPHD():
         # define ys with rows of measurement vectors 
         ys = np.array([ranges.to_numpy(),bearings.to_numpy()]).T
         
-        self.propogate(dt)
-        self.correct(ys)
-        self.prune()
-        self.merge()
-        self.cap()
+        self.propogate(dt) # gets birthGM, propogation (for w=0), and weight adjustment correct
+        self.correct(ys) # working unclear? Maybe?
+        self.prune() # works
+        self.merge() # not working: deletes element number 1 (big problem dude)
+        self.cap() # assume working (doesn't ruin PHD)
         return self.extract_states()
         
     def propogate(self, dt):
@@ -213,10 +213,10 @@ class GMPHD():
         self.PHD += birthGM
         
         # update cardinality estimate
-        birth_weight = 0 
+        total_birth_weight = 0 
         for gaussian in birthGM:
-            birth_weight += gaussian.w
-        self.N = self.N*self.Ps + birth_weight
+            total_birth_weight += gaussian.w
+        self.N = self.N*self.Ps + total_birth_weight
 
     def correct(self, ys):
         # ys_measured is a 2d array with rows of measurement vectors
@@ -267,15 +267,16 @@ class GMPHD():
         
     def merge(self):
         # PHD must be sorted by weight such that PHD[0] is highest weight; 
-        # make sure prune is called immediately prior
+        self.PHD = sorted(self.PHD, key=lambda x: -x.w)
         
-        # algorithm fills temp list with the merged and left-alone terms
+        # algorithm fills temp list with newly merged and left-alone terms
         new_phd = []
-        self.merge0term(self.PHD, new_phd)
+        self.merge0term(copy.deepcopy(self.PHD), new_phd)
+        self.PHD = new_phd
         
     def cap(self):
         # chatGPT recommendation here: learn about how lambdas work later
-        self.PHD = sorted(self.PHD, key=lambda x: x.w)
+        self.PHD = sorted(self.PHD, key=lambda x: -x.w)
         self.PHD = self.PHD[:100]
             
     def mahalanobis(self, x1, x2, P1):
@@ -286,10 +287,11 @@ class GMPHD():
         current_element = phd.pop(0) # pop first element to compare the rest to
         close_elements = [current_element]
         indices = []
+        
         # find close terms
         i = 0
         for element in phd: # phd is now all terms except what was PHD[0]
-            if (self.mahalanobis(element.m, current_element.m, current_element.P)) < self.merge_threshold: # FIXME check this is write P
+            if (self.mahalanobis(element.m, current_element.m, current_element.P)) < self.merge_threshold: # FIXME check this is the correct P
                 indices.append(i)
             i += 1
         # add close terms to close elements list
@@ -298,7 +300,7 @@ class GMPHD():
         # remove close terms from phd
         phd = [val for indx, val in enumerate(phd) if indx not in indices]
         
-        if len(close_elements) > 0:
+        if len(close_elements) > 1: # FIXME check this should be 1
             merged_w = 0
             for element in close_elements:
                 merged_w += element.w    
@@ -310,13 +312,14 @@ class GMPHD():
             
             merged_P = 0 
             for element in close_elements:
-                element.w*(element.P + (merged_m - element.m)@(merged_m - element.m).T)
+                merged_P = element.w*(element.P + (merged_m - element.m)@(merged_m - element.m).T)
             merged_P /= merged_w
+            merged_P = 0.5*(merged_P + merged_P.T)
             
             merged_element = Gaussian(merged_w, merged_m, merged_P)
             new_phd.append(merged_element)
             
-        else: # add current element to temp
+        else: # add current element to temp # FIXME is this else necessary?
             new_phd.append(current_element)
         
         if len(phd)>0:
@@ -331,7 +334,8 @@ class GMPHD():
                 for i in range(0,w_round):
                     output.append(element.m)
             else:
-                break
+                break # since list is sorted, all elements to follow also are below threshold
+        return output
                 
                 
       

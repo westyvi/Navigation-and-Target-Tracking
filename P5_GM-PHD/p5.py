@@ -17,7 +17,6 @@ import math
 from matplotlib import pyplot as plt
 from p5_Classes import Gaussian, GMPHD
 import os
-import copy
 
 # Load csv files into dictionary of data frames
 resource_path = os.path.join(".", "project5_resources")
@@ -54,10 +53,14 @@ for i in range(datalength):
    
     output = tracker.run(dt, ranges, bearings)
     if output is not None:
-        for j, state in output:
+        j = 0
+        for state in output:
             xs[i,:,j] = state
+            j += 1
             
-    print(tracker.run(dt, ranges, bearings))
+    # FIXME if this is another tracker.run call, tracker breaks.
+    # --> does tracker have bug where it breaks if given the same input twice?
+    print(output)
     
 
 #%% plot 
