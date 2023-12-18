@@ -90,6 +90,9 @@ class EKF:
         # note: consider joseph form of covariance update equation because covariance is always symmetric positive definite by definition
         p_hat = self.F @ p_hat @ self.F.T + self.L @ self.Q @ self.L.T
         p_hat = 0.5*(p_hat + p_hat.T) # enforce symmetry
+        epsilon = 1E-05
+        p_hat = p_hat + np.eye(p_hat.shape[0])*epsilon
+        
         
         # update predicted apriori state with nonlinear propogation equation
         F_nonlinear = copy.deepcopy(self.F) 
@@ -130,9 +133,13 @@ class EKF:
         self.S = 0.5*(self.S + self.S.T)
         
         # enforce positive semidefinite
-        self.S = la.sqrtm(self.S.T @ self.S)
-        _ = np.linalg.pinv(self.S)
-        self.S = np.linalg.pinv(_)
+        #self.S = la.sqrtm(self.S.T @ self.S)
+        #_ = np.linalg.pinv(self.S)
+        #self.S = np.linalg.pinv(_)
+        
+        # regularize matrix to prevent underflow
+        #epsilon = 1E-5
+        #self.S = self.S + np.eye(self.S.shape[0])*epsilon
        
         # Kalman gain matrix
         self.K = p_hat @ self.H.T @ np.linalg.inv(self.S)
@@ -146,11 +153,25 @@ class EKF:
         innovation = y_measured - y_hat
        
         # posteriori mean state estimate (from apriori state estimate)
+        x_hat1 = x_hat + self.K @ innovation
+        
+        # iterate to get better measurement matrices (this makes this an IEKF)
+        self.update_measurement_matrices(x_hat1, p_hat)
+        x_hat2 = x_hat + self.K @ innovation
+        self.update_measurement_matrices(x_hat2, p_hat)
         x_hat = x_hat + self.K @ innovation
         
         # update apriori covariance to posteriori covariance 
-        p_hat = p_hat - self.K @ self.S @ self.K.T
-        p_hat = 0.5*(p_hat + p_hat.T) # enforce symmetry
+        #p_hat = p_hat - self.K @ self.S @ self.K.T
+        #p_hat = 0.5*(p_hat + p_hat.T) # enforce symmetry
+        
+        # Joseph form aposteriori covariance update 
+        A = np.eye(p_hat.shape[0]) - self.K @ self.H
+        p_hat = A @ p_hat @ A.T + self.K @ self.R @ self.K.T
+        
+        # regularize p to prevent underflow
+        #epsilon = 1E-5
+        #p_hat = p_hat + np.eye(p_hat.shape[0])*epsilon
         
         return x_hat, p_hat
         
@@ -188,11 +209,11 @@ class GMPHD():
         # define ys with rows of measurement vectors 
         ys = np.array([ranges.to_numpy(),bearings.to_numpy()]).T
         
-        self.propogate(dt) # gets birthGM, propogation (for w=0), and weight adjustment correct
-        self.correct(ys) # working unclear? Maybe?
-        self.prune() # works
-        self.merge() # not working: deletes element number 1 (big problem dude)
-        self.cap() # assume working (doesn't ruin PHD)
+        self.propogate(dt) 
+        self.correct(ys) 
+        self.prune() 
+        self.merge() 
+        self.cap() 
         return self.extract_states()
         
     def propogate(self, dt):
@@ -232,6 +253,8 @@ class GMPHD():
                 self.KF.update_measurement_matrices(element.m, element.P)
                 y_hat = self.KF.nonlinear_measurement(element.m)
                 S = self.KF.S
+                S = (S + S.T)/2
+                #print(np.linalg.eigvals(S))
                 measurement_gaussian = stats.multivariate_normal(mean=y_hat, cov=S)
                 likelihoods[i] = self.Pd*element.w
                 likelihoods[i] *= measurement_gaussian.pdf(y)
@@ -300,7 +323,7 @@ class GMPHD():
         # remove close terms from phd
         phd = [val for indx, val in enumerate(phd) if indx not in indices]
         
-        if len(close_elements) > 1: # FIXME check this should be 1
+        if len(close_elements) > 1: 
             merged_w = 0
             for element in close_elements:
                 merged_w += element.w    
@@ -335,7 +358,7 @@ class GMPHD():
                     output.append(element.m)
             else:
                 break # since list is sorted, all elements to follow also are below threshold
-        return output
+        return output, self.N
                 
                 
       

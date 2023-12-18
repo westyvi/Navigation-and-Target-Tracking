@@ -9,6 +9,19 @@ AEM667 - Navigation and Target Tracking
 Project 5
 
 Written by Joey Westermeyer 2023
+
+notes:
+    issues with S being non invertible. Investigate:
+        Joseph form update (done, didn't help)
+        iterate on H,K matrices - making EKF an IEKF - (improved singularity from t=14 to t=18)
+        Add small number to diagonal of P and S to prevent underflow (didn't help)
+        
+        input scaling
+        Different KF formulations (square root filter?)
+        Thoronton and Bierman UD implementation
+    would like to make plotting not limited to scatter
+        write code that recognizes new tracks when plotting via distance change
+    
 """
 
 import numpy as np
@@ -39,11 +52,13 @@ tracker = GMPHD(initialPHD)
 # third dimension is max number of targets for PHD cap step
 # if targets don't exist, the states in this array will remain 0
 xs = np.zeros((datalength, x0.shape[0], 100)) 
+cardinalities = np.zeros(datalength)
 xs[:] = np.nan
+cardinalities[:] = np.nan
 
 dt = 1/1  # measurements taken at 1 Hz
 
-
+# iterate through time steps, feeding in recorded data
 for i in range(datalength):
     print(i)
     
@@ -51,19 +66,21 @@ for i in range(datalength):
     bearings = dataframes['bearings'].iloc[i, :].dropna()
     ranges = dataframes['ranges'].iloc[i, :].dropna()
    
-    output = tracker.run(dt, ranges, bearings)
+    # run tracker with sensor data for current time step
+    output, N = tracker.run(dt, ranges, bearings)
+    
+    # log tracker results
+    cardinalities[i] = N
     if output is not None:
         j = 0
         for state in output:
             xs[i,:,j] = state
             j += 1
-            
-    # FIXME if this is another tracker.run call, tracker breaks.
-    # --> does tracker have bug where it breaks if given the same input twice?
-    print(output)
     
 
 #%% plot 
+filter_size = 8
+truth_size = 5
 
 ### convert cluttered sensor data to xy for plotting
 xy_coordinates = []
@@ -114,10 +131,10 @@ fig, ax = plt.subplots()
 for j in range(0,100):
     if j == 0:
         #ax.plot(xs[:,0,j],xs[:,1,j], 'c', label='cluttered PDAF')
-        ax.scatter(truth[:,0,j],truth[:,1,j], c='red', s=5, label='truth') 
+        ax.scatter(truth[:,0,j],truth[:,1,j], c='red', s=truth_size, label='truth') 
     else:
-        ax.scatter(xs[:,0,j],xs[:,1,j], c='cyan', s=5)
-        ax.scatter(truth[:,0,j],truth[:,1,j], c='red', s=5) 
+        ax.scatter(xs[:,0,j],xs[:,1,j], c='black', s=filter_size)
+        ax.scatter(truth[:,0,j],truth[:,1,j], c='red', s=truth_size) 
 ax.set(xlabel = 'x, m', ylabel = 'y, m',
       title = 'xy plane track trajectory')
 ax.legend()
@@ -128,15 +145,15 @@ plt.grid(True)
 fig, (ax1, ax2) = plt.subplots(2, 1, tight_layout=True, figsize=(8, 5))
 fig.suptitle("Position vs time")
 for j in range(0,100):
-    ax1.scatter(truth_time, xs[:,0,j], c='cyan')
-    ax1.scatter(truth_time, truth[:,0,j], c='red', s=5)
+    ax1.scatter(truth_time, xs[:,0,j], c='black', s=filter_size)
+    ax1.scatter(truth_time, truth[:,0,j], c='red', s=truth_size)
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="x_pos (m)")
 ax1.scatter(ts, x_coordinates, s=2, alpha=.2)
 
 for j in range(0,100):
-    ax2.scatter(truth_time, xs[:,1,j], c='cyan')
-    ax2.scatter(truth_time, truth[:,1,j], c='red', s=5)
+    ax2.scatter(truth_time, xs[:,1,j], c='black', s=filter_size)
+    ax2.scatter(truth_time, truth[:,1,j], c='red', s=truth_size)
 ax2.plot()
 ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="y_pos (m)")
@@ -147,6 +164,7 @@ ax2.scatter(ts, y_coordinates, s=2, alpha=.2)
 fig, ax1 = plt.subplots()
 fig.suptitle("cardinality vs time")
 ax1.plot(true_cardinality, 'r', label='truth')
+ax1.plot(cardinalities, 'b', label='GM-PHD')
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="Cardinality")
 fig.legend()
@@ -180,4 +198,4 @@ ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="w (rad/s)")
 fig.legend()
 '''
-a = 5
+dummyvar = 5 # stops code from printing commented block of code to console
