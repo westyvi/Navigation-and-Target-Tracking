@@ -44,7 +44,7 @@ datalength = dataframes['truth'].shape[0]
 # intialize PHD with one target with low weight
 x0 = np.array([0.0001, 0.0001, 0, 0, 0])  # initial state vector
 weight0 = 10E-10
-P0 = np.diag([.001,.001,.001,.001, 0.01])
+P0 = np.diag([.000001,.000001,.000001,.000001, 0.01])
 initialPHD = [Gaussian(weight0, x0, P0)]
 tracker = GMPHD(initialPHD)
 
@@ -70,19 +70,22 @@ for i in range(datalength):
    
     # run tracker with sensor data for current time step
     output, N = tracker.run(dt, ranges/1000, bearings)
-    
+    print(len(output))
+
     # log tracker results
     cardinalities[i] = N
     if output is not None:
         j = 0
         for state in output:
             xs[i,:,j] = state
+            xs[i,0:4,j] = xs[i,0:4,j]*1000
             j += 1
     
 
 #%% plot 
 filter_size = 8
 truth_size = 5
+opacity= .5
 
 ### convert cluttered sensor data to xy for plotting
 xy_coordinates = []
@@ -132,11 +135,11 @@ fig, ax = plt.subplots()
 # j is objects: loop through each potential object, plot it for all time (first index) and one state (middle index)
 for j in range(0,100):
     if j == 0:
-        ax.scatter(xs[:,0,j],xs[:,1,j], c='black', s=filter_size, label='cluttered PDAF')
-        ax.scatter(truth[:,0,j],truth[:,1,j], c='red', s=truth_size, label='truth') 
+        ax.scatter(xs[:,0,j],xs[:,1,j], c='black', s=filter_size, label='cluttered PDAF', alpha=opacity)
+        ax.scatter(truth[:,0,j],truth[:,1,j], c='red', s=truth_size, label='truth', alpha=opacity) 
     else:
-        ax.scatter(xs[:,0,j],xs[:,1,j], c='black', s=filter_size)
-        ax.scatter(truth[:,0,j],truth[:,1,j], c='red', s=truth_size) 
+        ax.scatter(xs[:,0,j],xs[:,1,j], c='black', s=filter_size, alpha=opacity)
+        ax.scatter(truth[:,0,j],truth[:,1,j], c='red', s=truth_size, alpha=opacity) 
 ax.set(xlabel = 'x, m', ylabel = 'y, m',
       title = 'xy plane track trajectory')
 ax.legend()
@@ -148,22 +151,18 @@ fig, (ax1, ax2) = plt.subplots(2, 1, tight_layout=True, figsize=(8, 5))
 fig.suptitle("Position vs time")
 for j in range(0,100):
     if j ==0:
-        ax1.scatter(truth_time, xs[:,0,j], c='black', s=filter_size, label='cluttered PDAF')
-        ax1.scatter(truth_time, truth[:,0,j], c='red', s=truth_size, label='truth')
+        ax1.scatter(truth_time, xs[:,0,j], c='black', s=filter_size, label='cluttered PDAF', alpha=opacity)
+        ax1.scatter(truth_time, truth[:,0,j], c='red', s=truth_size, label='truth', alpha=opacity)
     else:
-        ax1.scatter(truth_time, xs[:,0,j], c='black', s=filter_size)
-        ax1.scatter(truth_time, truth[:,0,j], c='red', s=truth_size)
+        ax1.scatter(truth_time, xs[:,0,j], c='black', s=filter_size, alpha=opacity)
+        ax1.scatter(truth_time, truth[:,0,j], c='red', s=truth_size, alpha=opacity)
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="x_pos (m)")
 ax1.scatter(ts, x_coordinates, s=2, alpha=.2)
 
 for j in range(0,100):
-    if j == 0:
-        ax2.scatter(truth_time, xs[:,1,j], c='black', s=filter_size, label='cluttered PDAF')
-        ax2.scatter(truth_time, truth[:,1,j], c='red', s=truth_size, label='truth')
-    else:
-        ax2.scatter(truth_time, xs[:,1,j], c='black', s=filter_size)
-        ax2.scatter(truth_time, truth[:,1,j], c='red', s=truth_size)
+    ax2.scatter(truth_time, xs[:,1,j], c='black', s=filter_size, alpha=opacity)
+    ax2.scatter(truth_time, truth[:,1,j], c='red', s=truth_size, alpha=opacity)
 ax2.plot()
 ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="y_pos (m)")

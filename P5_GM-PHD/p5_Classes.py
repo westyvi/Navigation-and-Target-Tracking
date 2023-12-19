@@ -90,8 +90,8 @@ class EKF:
         # note: consider joseph form of covariance update equation because covariance is always symmetric positive definite by definition
         p_hat = self.F @ p_hat @ self.F.T + self.L @ self.Q @ self.L.T
         p_hat = 0.5*(p_hat + p_hat.T) # enforce symmetry
-        epsilon = 1E-05
-        p_hat = p_hat + np.eye(p_hat.shape[0])*epsilon
+        #epsilon = 1E-07
+        #p_hat = p_hat + np.eye(p_hat.shape[0])*epsilon
         
         # update predicted apriori state with nonlinear propogation equation
         F_nonlinear = copy.deepcopy(self.F) 
@@ -150,15 +150,15 @@ class EKF:
         # compare expected measurement to sensor measurement
         y_hat = self.nonlinear_measurement(x_hat)
         innovation = y_measured - y_hat
-       
+        
         # posteriori mean state estimate (from apriori state estimate)
         x_hat1 = x_hat + self.K @ innovation
         
         # iterate to get better measurement matrices (this makes this an IEKF)
         self.update_measurement_matrices(x_hat1, p_hat)
-        x_hat2 = x_hat + self.K @ innovation
-        self.update_measurement_matrices(x_hat2, p_hat)
         x_hat = x_hat + self.K @ innovation
+        #self.update_measurement_matrices(x_hat2, p_hat)
+        #x_hat = x_hat + self.K @ innovation
         
         # update apriori covariance to posteriori covariance 
         #p_hat = p_hat - self.K @ self.S @ self.K.T
@@ -186,7 +186,7 @@ class GMPHD():
         # define statistics for GM-PHD
         self.Pd = 0.98 # probability of detection
         self.Ps = 0.99 # probability of survival
-        self.kappa = 0.0032*1000 # uniform clutter PHD density
+        self.kappa = 0.0032 # uniform clutter PHD density
         self.PHD = gaussians
         self.prune_threshold = 10E-5
         self.merge_threshold = 4
@@ -227,10 +227,10 @@ class GMPHD():
         # *could define this in init for greater efficiency
         # *but putting here allows flexibility if birth model becomes non-constant
         birthGM = [
-                    Gaussian(0.02, np.array([-1500, 250, 0, 0, 0])/1000, np.diag([2.500, 2.500, 2.500, 2.500, 0.0018])), # FIXME converted these to km
-                   Gaussian(0.02, np.array([-250, 1000, 0, 0, 0])/1000, np.diag([2.500, 2.500, 2.500, 2.500, 0.0018])),
-                   Gaussian(0.03, np.array([250, 750, 0, 0, 0])/1000, np.diag([2.500, 2.500, 2.500, 2.500, 0.0018])),
-                   Gaussian(0.03, np.array([1000, 1500, 0, 0, 0])/1000, np.diag([2.500, 2.500, 2.500, 2.500, 0.0018]))
+                    Gaussian(0.02, np.array([-1500, 250, 0, 0, 0])/1000, np.diag([.002500, .002500, .002500, .002500, 0.0018])), # FIXME converted these to km
+                   Gaussian(0.02, np.array([-250, 1000, 0, 0, 0])/1000, np.diag([.002500, .002500, .002500, .002500, 0.0018])),
+                   Gaussian(0.03, np.array([250, 750, 0, 0, 0])/1000, np.diag([.002500, .002500, .002500, .002500, 0.0018])),
+                   Gaussian(0.03, np.array([1000, 1500, 0, 0, 0])/1000, np.diag([.002500, .002500, .002500, .002500, 0.0018]))
                    ]
         self.PHD += birthGM
         
@@ -259,7 +259,7 @@ class GMPHD():
                 #print(np.linalg.eigvals(S))
                 measurement_gaussian = stats.multivariate_normal(mean=y_hat, cov=S)
                 likelihoods[i] = self.Pd*element.w
-                likelihoods[i] *= measurement_gaussian.pdf(y)
+                likelihoods[i] *= measurement_gaussian.pdf(y)/1000 # FIXME why does this need to be here?
                 i += 1
             
             # create new Gaussian elements based on measurement likelihoods
@@ -316,7 +316,7 @@ class GMPHD():
         # find close terms
         i = 0
         for element in phd: # phd is now all terms except what was PHD[0]
-            if (self.mahalanobis(element.m, current_element.m, current_element.P)) < self.merge_threshold: # FIXME check this is the correct P
+            if (self.mahalanobis(element.m, current_element.m, current_element.P)) < self.merge_threshold:
                 indices.append(i)
             i += 1
         # add close terms to close elements list
