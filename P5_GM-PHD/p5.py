@@ -44,7 +44,7 @@ datalength = dataframes['truth'].shape[0]
 # intialize PHD with one target with low weight
 x0 = np.array([0.0001, 0.0001, 0, 0, 0])  # initial state vector
 weight0 = 10E-10
-P0 = np.diag([.001,.001,1,1, 0.01])
+P0 = np.diag([.001,.001,.001,.001, 0.01])
 initialPHD = [Gaussian(weight0, x0, P0)]
 tracker = GMPHD(initialPHD)
 
@@ -56,18 +56,20 @@ cardinalities = np.zeros(datalength)
 xs[:] = np.nan
 cardinalities[:] = np.nan
 
-dt = 1/1  # measurements taken at 1 Hz
+dt = 1/1  # measurements taken at 1 Hz # FIXME cheating
 
 # iterate through time steps, feeding in recorded data
 for i in range(datalength):
+    print('')
     print(i)
+ 
     
     # define clean and cluttered sensor data
     bearings = dataframes['bearings'].iloc[i, :].dropna()
     ranges = dataframes['ranges'].iloc[i, :].dropna()
    
     # run tracker with sensor data for current time step
-    output, N = tracker.run(dt, ranges, bearings)
+    output, N = tracker.run(dt, ranges/1000, bearings)
     
     # log tracker results
     cardinalities[i] = N
