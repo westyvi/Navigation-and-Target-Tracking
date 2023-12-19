@@ -8,7 +8,6 @@ Created on Fri Nov 10 08:32:22 2023
 import numpy as np
 import math
 import copy
-import scipy.linalg as la
 import scipy.stats as stats
 
 class Gaussian():
@@ -31,11 +30,11 @@ class EKF:
         self.sigma_w = math.radians(2) # omega uncertainty, rad/s
         
         # play with gains for educational purposes
-        '''self.sigma_xdot = .3 # xdot uncertainty, m/s
-        self.sigma_ydot = .3 # ydot uncertainty, m/s
-        self.sigma_w = math.radians(.5) # omega uncertainty, rad/s
-        self.sigma_r = 20
-        self.sigma_theta = math.radians(10)'''
+        self.sigma_x = 50/1000 # x uncertainty, km
+        self.sigma_y = 50/1000 # y uncertainty, km
+        self.sigma_xdot = 20/1000 # xdot uncertainty, km/s
+        self.sigma_ydot = 20/1000 # ydot uncertainty, km/s
+        self.sigma_w = math.radians(4) # omega uncertainty, rad/s
         
         # init measurement model uncertainty parameters 
         self.sigma_r = 10/1000 # range uncertainty, km
@@ -71,7 +70,7 @@ class EKF:
         
         # L: process noise gain matrix
         L = np.zeros((5,3))
-        L[0,0] = dt**2/2 # FIXME is this also supposed to be /1000?
+        L[0,0] = dt**2/2 
         L[1,1] = dt**2/2
         L[2,0] = dt
         L[3,1] = dt
@@ -81,13 +80,7 @@ class EKF:
         # process noise w covariance matrix
         self.Q = np.diag([self.sigma_xdot**2, self.sigma_ydot**2, self.sigma_w**2])
         
-        # merging this function fixed a bug- investigate why later
-    #def predict(self, x_hat, p_hat, dt):
-        # receives x_hat, p_hat, dt and propogates. Returns apriori x_hat, p_hat, y_hat
-        #self.update_predict_matrices(self, x_hat, dt)
-        
         # update P_hat to apriori covariance estimate P_k|k-1
-        # note: consider joseph form of covariance update equation because covariance is always symmetric positive definite by definition
         p_hat = self.F @ p_hat @ self.F.T + self.L @ self.Q @ self.L.T
         p_hat = 0.5*(p_hat + p_hat.T) # enforce symmetry
         #epsilon = 1E-07
@@ -157,12 +150,6 @@ class EKF:
         # iterate to get better measurement matrices (this makes this an IEKF)
         self.update_measurement_matrices(x_hat1, p_hat)
         x_hat = x_hat + self.K @ innovation
-        #self.update_measurement_matrices(x_hat2, p_hat)
-        #x_hat = x_hat + self.K @ innovation
-        
-        # update apriori covariance to posteriori covariance 
-        #p_hat = p_hat - self.K @ self.S @ self.K.T
-        #p_hat = 0.5*(p_hat + p_hat.T) # enforce symmetry
         
         # Joseph form aposteriori covariance update 
         A = np.eye(p_hat.shape[0]) - self.K @ self.H
@@ -191,6 +178,8 @@ class GMPHD():
         self.prune_threshold = 10E-5
         self.merge_threshold = 4
         self.max_terms = 100
+        Pg = 0.9999 # gate probability
+        self.gate_criteria = stats.distributions.chi2.ppf(Pg, df=2) # 2 dimensional bc ys are [range, bearing]
         
         # init cardinality estimate
         self.N = 0
@@ -242,6 +231,14 @@ class GMPHD():
 
     def correct(self, ys):
         # ys_measured is a 2d array with rows of measurement vectors
+        
+        # # FIXME future updgrade: gate ys (reduce computation time for ridiculous ys)
+        '''ys_gated = np.empty((0,2))
+        for y in ys_measured:
+            if (y-self.y_hat).T @ np.linalg.inv(self.S) @ (y-self.y_hat) < self.gate_criteria:
+                ys_gated = np.vstack((ys_gated,y))
+        
+        print(len(ys) - len(ys_gated))'''
         
         # create new gaussian elements to add based on measurements
         newGM = []
