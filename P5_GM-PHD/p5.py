@@ -195,16 +195,20 @@ for j in range(0,100):
 ax2.plot()
 ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="v_y (m/s)")
-fig.legend()
+fig.legend()'''
 
 # Plot the true and estimated turn-rate, 𝜔, vs. time
 fig, ax1 = plt.subplots()
 fig.suptitle("Turn rate vs time")
 for j in range(0,100):
-    #ax1.plot(xs[:,4,j], 'c', label='cluttered PDAF')
-    ax1.plot(xs[:,4,j], c='red', s=5)
+    if j ==0:
+        ax1.scatter(truth_time, xs[:,4,j], c='black', s=filter_size, label='cluttered PDAF', alpha=opacity)
+        ax1.scatter(truth_time, truth[:,4,j], c='red', s=truth_size, label='truth', alpha=opacity)
+    else:
+        ax1.scatter(truth_time, xs[:,4,j], c='black', s=filter_size, alpha=opacity)
+        ax1.scatter(truth_time, truth[:,4,j], c='red', s=truth_size, alpha=opacity)
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="w (rad/s)")
 fig.legend()
-'''
+
 dummyvar = 5 # stops code from printing commented block of code to console
