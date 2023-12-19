@@ -42,9 +42,9 @@ for filename in filenames:
 datalength = dataframes['truth'].shape[0]
 
 # intialize PHD with one target with low weight
-x0 = np.array([0.1, 0.1, 0, 0, 0])  # initial state vector
+x0 = np.array([0.0001, 0.0001, 0, 0, 0])  # initial state vector
 weight0 = 10E-10
-P0 = np.diag([1,1,1,1, 0.01])
+P0 = np.diag([.001,.001,1,1, 0.01])
 initialPHD = [Gaussian(weight0, x0, P0)]
 tracker = GMPHD(initialPHD)
 
@@ -130,7 +130,7 @@ fig, ax = plt.subplots()
 # j is objects: loop through each potential object, plot it for all time (first index) and one state (middle index)
 for j in range(0,100):
     if j == 0:
-        #ax.plot(xs[:,0,j],xs[:,1,j], 'c', label='cluttered PDAF')
+        ax.scatter(xs[:,0,j],xs[:,1,j], c='black', s=filter_size, label='cluttered PDAF')
         ax.scatter(truth[:,0,j],truth[:,1,j], c='red', s=truth_size, label='truth') 
     else:
         ax.scatter(xs[:,0,j],xs[:,1,j], c='black', s=filter_size)
@@ -145,15 +145,23 @@ plt.grid(True)
 fig, (ax1, ax2) = plt.subplots(2, 1, tight_layout=True, figsize=(8, 5))
 fig.suptitle("Position vs time")
 for j in range(0,100):
-    ax1.scatter(truth_time, xs[:,0,j], c='black', s=filter_size)
-    ax1.scatter(truth_time, truth[:,0,j], c='red', s=truth_size)
+    if j ==0:
+        ax1.scatter(truth_time, xs[:,0,j], c='black', s=filter_size, label='cluttered PDAF')
+        ax1.scatter(truth_time, truth[:,0,j], c='red', s=truth_size, label='truth')
+    else:
+        ax1.scatter(truth_time, xs[:,0,j], c='black', s=filter_size)
+        ax1.scatter(truth_time, truth[:,0,j], c='red', s=truth_size)
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="x_pos (m)")
 ax1.scatter(ts, x_coordinates, s=2, alpha=.2)
 
 for j in range(0,100):
-    ax2.scatter(truth_time, xs[:,1,j], c='black', s=filter_size)
-    ax2.scatter(truth_time, truth[:,1,j], c='red', s=truth_size)
+    if j == 0:
+        ax2.scatter(truth_time, xs[:,1,j], c='black', s=filter_size, label='cluttered PDAF')
+        ax2.scatter(truth_time, truth[:,1,j], c='red', s=truth_size, label='truth')
+    else:
+        ax2.scatter(truth_time, xs[:,1,j], c='black', s=filter_size)
+        ax2.scatter(truth_time, truth[:,1,j], c='red', s=truth_size)
 ax2.plot()
 ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="y_pos (m)")

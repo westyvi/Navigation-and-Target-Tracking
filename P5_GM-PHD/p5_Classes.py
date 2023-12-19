@@ -24,8 +24,8 @@ class EKF:
     def __init__(self):
         
         # init Weiner process model (for CT-UTR) uncertainty parameters
-        self.sigma_x = 10 # x uncertainty, m
-        self.sigma_y = 10 # y uncertainty, m
+        self.sigma_x = 10/1000 # x uncertainty, m
+        self.sigma_y = 10/1000 # y uncertainty, m
         self.sigma_xdot = 5 # xdot uncertainty, m/s
         self.sigma_ydot = 5 # ydot uncertainty, m/s
         self.sigma_w = math.radians(2) # omega uncertainty, rad/s
@@ -53,17 +53,17 @@ class EKF:
         # F: discrete-time linearized state matrix
         if w == 0: # constant velocity, non-turning model
             F = np.eye(5)
-            F[0,2] = dt
-            F[1,3] = dt
+            F[0,2] = dt/1000
+            F[1,3] = dt/1000
         else:
             F = np.eye(5)
-            F[:2, 2:4] = [[math.sin(w*dt)/w, (math.cos(w*dt)-1)/w],
-                           [(1-math.cos(w*dt))/w, math.sin(w*dt)/w]]
-            F[2:4, 2:4] = [[math.cos(w*dt), -math.sin(w*dt)], [math.sin(w*dt), math.cos(dt*w)]]
+            F[:2, 2:4] = [[math.sin(w*dt)/w/1000, (math.cos(w*dt)-1)/w/1000],
+                           [(1-math.cos(w*dt))/w/1000, math.sin(w*dt)/w/1000]]
+            F[2:4, 2:4] = [[math.cos(w*dt)/1000, -math.sin(w*dt)/1000], [math.sin(w*dt)/1000, math.cos(dt*w)/1000]]
             F[0,4] = ( ((w*dt*math.cos(dt*w)-math.sin(w*dt))/(w**2))*xdot
-                        - (w*dt*math.sin(w*dt) - 1 + math.cos(w*dt))*ydot/(w**2) )
+                        - (w*dt*math.sin(w*dt) - 1 + math.cos(w*dt))*ydot/(w**2) )/1000
             F[1,4] = ( ((w*dt*math.sin(dt*w) - 1 + math.cos(w*dt))/(w**2))*xdot
-                        + (w*dt*math.cos(w*dt) - math.sin(w*dt))*ydot/(w**2) )
+                        + (w*dt*math.cos(w*dt) - math.sin(w*dt))*ydot/(w**2) )/1000
             F[2,4] = -dt*math.sin(w*dt)*xdot - dt*math.cos(w*dt)*ydot
             F[3,4] = dt*math.cos(dt*w)*xdot - dt*math.sin(w*dt)*ydot
             F[4,4] = 1 # beta=1 for weiner process model for omega
@@ -71,8 +71,8 @@ class EKF:
         
         # L: process noise gain matrix
         L = np.zeros((5,3))
-        L[0,0] = dt**2/2
-        L[1,1] = dt**2/2
+        L[0,0] = dt**2/2/1000 # FIXME is this also supposed to be /1000?
+        L[1,1] = dt**2/2/1000
         L[2,0] = dt
         L[3,1] = dt
         L[4,2] = 1
@@ -93,7 +93,6 @@ class EKF:
         epsilon = 1E-05
         p_hat = p_hat + np.eye(p_hat.shape[0])*epsilon
         
-        
         # update predicted apriori state with nonlinear propogation equation
         F_nonlinear = copy.deepcopy(self.F) 
         F_nonlinear[:4,4] = 0 # nonlinear update equation is linearized F without omega derivates in column 5
@@ -103,7 +102,7 @@ class EKF:
     
     def nonlinear_measurement(self, x_hat):
         # convert estimated state to expected measurement
-       y_hat = np.array([math.sqrt(x_hat[0]**2 + x_hat[1]**2), math.atan2(x_hat[0],x_hat[1])])
+       y_hat = np.array([math.sqrt(x_hat[0]**2 + x_hat[1]**2)*1000, math.atan2(x_hat[0],x_hat[1])])
        return y_hat
       
         
@@ -119,7 +118,7 @@ class EKF:
 
         # define linearized output matrix H
         self.H = np.array([
-            [x/math.sqrt(x**2 + y**2), y/math.sqrt(x**2 + y**2), 0, 0, 0],
+            [x/math.sqrt(x**2 + y**2)*1000, y/math.sqrt(x**2 + y**2)*1000, 0, 0, 0],
             [1/(y + x**2/y), -x/(x**2 + y**2), 0, 0, 0]
                 ])
         
@@ -226,10 +225,10 @@ class GMPHD():
         # *could define this in init for greater efficiency
         # *but putting here allows flexibility if birth model becomes non-constant
         birthGM = [
-                    Gaussian(0.02, np.array([-1500, 250, 0, 0, 0]), np.diag([2500, 2500, 2500, 2500, 0.0018])),
-                   Gaussian(0.02, np.array([-250, 1000, 0, 0, 0]), np.diag([2500, 2500, 2500, 2500, 0.0018])),
-                   Gaussian(0.03, np.array([250, 750, 0, 0, 0]), np.diag([2500, 2500, 2500, 2500, 0.0018])),
-                   Gaussian(0.03, np.array([1000, 1500, 0, 0, 0]), np.diag([2500, 2500, 2500, 2500, 0.0018]))
+                    Gaussian(0.02, np.array([-1500, 250, 0, 0, 0])/1000, np.diag([2.500, 2.500, 2500, 2500, 0.0018])), # FIXME converted these to km
+                   Gaussian(0.02, np.array([-250, 1000, 0, 0, 0])/1000, np.diag([2.500, 2.500, 2500, 2500, 0.0018])),
+                   Gaussian(0.03, np.array([250, 750, 0, 0, 0])/1000, np.diag([2.500, 2.500, 2500, 2500, 0.0018])),
+                   Gaussian(0.03, np.array([1000, 1500, 0, 0, 0])/1000, np.diag([2.500, 2.500, 2500, 2500, 0.0018]))
                    ]
         self.PHD += birthGM
         
@@ -254,7 +253,8 @@ class GMPHD():
                 y_hat = self.KF.nonlinear_measurement(element.m)
                 S = self.KF.S
                 S = (S + S.T)/2
-                #print(np.linalg.eigvals(S))
+                print(S)
+                print(np.linalg.eigvals(S))
                 measurement_gaussian = stats.multivariate_normal(mean=y_hat, cov=S)
                 likelihoods[i] = self.Pd*element.w
                 likelihoods[i] *= measurement_gaussian.pdf(y)
