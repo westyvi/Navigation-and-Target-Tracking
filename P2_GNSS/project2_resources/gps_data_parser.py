@@ -25,6 +25,8 @@ def parse_icp(r_file, times):
                 max_lines = max_lines + 1
 
     pranges = -np.ones(max_lines)
+    phases = -np.ones(max_lines)
+    cycle_slips = -np.ones(max_lines)
     trans_times = np.ones(max_lines)
     with open(r_file, 'r') as fin:
         ii = 0
@@ -33,6 +35,8 @@ def parse_icp(r_file, times):
                 cols = line.split()
                 pranges[ii] = float(cols[7])
                 trans_times[ii] = float(cols[0])
+                phases[ii] = float(cols[1])
+                cycle_slips[ii] = float(cols[5])
                 if times.size == 0:
                     times = np.array([trans_times[ii]])
                 elif abs(times - trans_times[ii]).min() > 0.2:
@@ -40,7 +44,7 @@ def parse_icp(r_file, times):
                 ii = ii + 1
 
     times.sort()
-    return (pranges, trans_times), times
+    return (pranges, trans_times, phases, cycle_slips), times
 
 def parse_rinex_v2(r_file):
     with open(r_file, 'r') as fin:

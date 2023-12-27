@@ -15,8 +15,7 @@ notes:
         Joseph form update (done, didn't help)
         iterate on H,K matrices - making EKF an IEKF - (improved singularity from t=14 to t=18)
         Add small number to diagonal of P and S to prevent underflow (didn't help)
-        
-        input scaling
+        input scaling: fixed the problem
         Different KF formulations (square root filter?)
         Thoronton and Bierman UD implementation
     would like to make plotting not limited to scatter
@@ -62,7 +61,6 @@ dt = 1/1  # measurements taken at 1 Hz # FIXME cheating
 for i in range(datalength):
     print('')
     print(i)
- 
     
     # define clean and cluttered sensor data
     bearings = dataframes['bearings'].iloc[i, :].dropna()
@@ -179,23 +177,31 @@ ax1.set(ylabel="Cardinality")
 fig.legend()
 ax1.set_ylim(bottom=0, top=None)
 
-'''
+
 # Plot the true and estimated 𝑥 and 𝑦 velocity vs. time
 fig, (ax1, ax2) = plt.subplots(2, 1)
 fig.suptitle("Velocity vs time")
 for j in range(0,100):
-    #ax1.plot(xs[:,2,j], 'c', label='cluttered PDAF')
-    ax1.plot(truth[:,2,j], c='red', s=5)
+    if j ==0:
+        ax1.scatter(truth_time, xs[:,2,j], c='black', s=filter_size, label='cluttered PDAF', alpha=opacity)
+        ax1.scatter(truth_time, truth[:,2,j], c='red', s=truth_size, label='truth', alpha=opacity)
+    else:
+        ax1.scatter(truth_time, xs[:,2,j], c='black', s=filter_size, alpha=opacity)
+        ax1.scatter(truth_time, truth[:,2,j], c='red', s=truth_size, alpha=opacity)
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="v_x (m/s)")
 
 for j in range(0,100):
-    #ax2.plot(xs[:,3,j], 'c', label='cluttered PDAF')
-    ax2.plot(truth[:,3,j], c='red', s=5)
+    if j ==0:
+        ax2.scatter(truth_time, xs[:,3,j], c='black', s=filter_size, label='cluttered PDAF', alpha=opacity)
+        ax2.scatter(truth_time, truth[:,3,j], c='red', s=truth_size, label='truth', alpha=opacity)
+    else:
+        ax2.scatter(truth_time, xs[:,3,j], c='black', s=filter_size, alpha=opacity)
+        ax2.scatter(truth_time, truth[:,3,j], c='red', s=truth_size, alpha=opacity)
 ax2.plot()
 ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="v_y (m/s)")
-fig.legend()'''
+fig.legend()
 
 # Plot the true and estimated turn-rate, 𝜔, vs. time
 fig, ax1 = plt.subplots()

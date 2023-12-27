@@ -43,8 +43,8 @@ times = np.array(0)
 for file in files:
     satNum = re.search('icp_sat(.*).txt', file.__str__())
     satNum = satNum.group(1)
-    (pranges, trans_times), times = gps.parse_icp(file, times)
-    bsats[satNum] = {'pranges':pranges, 'trans_times':trans_times}
+    (pranges, trans_times, phases, cycle_slips), times = gps.parse_icp(file, times)
+    bsats[satNum] = {'pranges':pranges, 'trans_times':trans_times, 'phases':phases, 'slips':cycle_slips}
 times = np.delete(times,0) # times array is now times from all base files
     
 # parse rover SV icp's
@@ -54,8 +54,8 @@ files = Path(directory).glob('icp_sat*')
 for file in files:
     satNum = re.search('icp_sat(.*).txt', file.__str__())
     satNum = satNum.group(1)
-    (pranges, trans_times), times = gps.parse_icp(file, times)
-    rsats[satNum] = {'pranges':pranges, 'trans_times':trans_times} 
+    (pranges, trans_times, phases, cycle_slips), times = gps.parse_icp(file, times)
+    rsats[satNum] = {'pranges':pranges, 'trans_times':trans_times, 'phases':phases, 'slips':cycle_slips}
     # times array is now times from all base AND rover  files
 
 # calculate base LOS to each SV (NED coords) for each time step
