@@ -4,7 +4,7 @@ This project implements the Probabilistic Data Association Filter (PDAF) and Ext
 ## Results
 The most relevant result is the estimated and true xy position trajectory, showing the filter's ability to track the target in the presence of clutter:
 
-![xy_trajectory](plots/xy_trajectory.png)
+![xy_trajectory](plots/xy_trajectory_with_measurements.png)
 
 ### Commentary
 The PDAF and EKF, both implemented using ellipsoidal gating on the measurements, perform remarkably similarly. This makes sense, as the only difference between the two is the data association method: nearest neighbor vs all neighbor probabilistic. The PDAF method also weights the nearest neighbor measurement the largest, and hence the output is very similar to an EKF with nearest neighbor. 
