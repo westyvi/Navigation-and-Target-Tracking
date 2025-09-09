@@ -121,22 +121,34 @@ ts = xy_coordinates[:,2]
 
 
 #%% plot results for cluttered sensor data with missed detections:
+
+# Plot 1: original xy_trajectory (filter and truth)
 fig, ax = plt.subplots()
 ax.plot(dataframes['truth'].iloc[:, 0],
-        dataframes['truth'].iloc[:, 2], 'r', label='truth')
+      dataframes['truth'].iloc[:, 2], 'r', label='truth')
 #ax.plot(xs_cleanEKF[:,0], xs_cleanEKF[:,1], 'b', label='clean NN EKF')
 ax.plot(xs_clutterEKF[:,0], xs_clutterEKF[:,1], 'g', label='cluttered NN EKF')
 #ax.plot(xs_cleanPDAF[:,0],xs_cleanPDAF[:,1], 'b', label='clean PDAF')
 ax.plot(xs_clutterPDAF[:,0],xs_clutterPDAF[:,1], 'c', label='cluttered PDAF')
-
 ax.set(xlabel = 'x, m', ylabel = 'y, m',
-      title = 'xy plane track trajectory')
+    title = 'xy plane track trajectory')
 ax.legend()
 plt.grid(True)
-#ax.scatter(x_coordinates, y_coordinates, s=2, alpha=.2) # cluttered detections
-#ax.scatter(measures[:,0], measures[:,1], marker='o',s=1, color='b') # clean detections
-
 plt.savefig('plots/xy_trajectory.png', dpi=300, bbox_inches='tight')
+plt.close()
+
+# Plot 2: xy_trajectory with all position measurements (clutter/noise)
+fig, ax = plt.subplots()
+ax.plot(dataframes['truth'].iloc[:, 0],
+      dataframes['truth'].iloc[:, 2], 'r', label='truth')
+ax.plot(xs_clutterEKF[:,0], xs_clutterEKF[:,1], 'g', label='cluttered NN EKF')
+ax.plot(xs_clutterPDAF[:,0],xs_clutterPDAF[:,1], 'c', label='cluttered PDAF')
+ax.scatter(x_coordinates, y_coordinates, s=2, alpha=0.2, c='blue', label='measurements')
+ax.set(xlabel = 'x, m', ylabel = 'y, m',
+    title = 'xy plane track trajectory with measurements')
+ax.legend()
+plt.grid(True)
+plt.savefig('plots/xy_trajectory_with_measurements.png', dpi=300, bbox_inches='tight')
 plt.close()
 
 # Plot the transformed range and bearing measurements to the position domain overlaid with the true and estimated 𝑥 and 𝑦 position vs. time

@@ -216,7 +216,7 @@ class GMPHD():
         # *could define this in init for greater efficiency
         # *but putting here allows flexibility if birth model becomes non-constant
         birthGM = [
-                    Gaussian(0.02, np.array([-1500, 250, 0, 0, 0])/1000, np.diag([.002500, .002500, .002500, .002500, 0.0018])), # FIXME converted these to km
+                    Gaussian(0.02, np.array([-1500, 250, 0, 0, 0])/1000, np.diag([.002500, .002500, .002500, .002500, 0.0018])), 
                    Gaussian(0.02, np.array([-250, 1000, 0, 0, 0])/1000, np.diag([.002500, .002500, .002500, .002500, 0.0018])),
                    Gaussian(0.03, np.array([250, 750, 0, 0, 0])/1000, np.diag([.002500, .002500, .002500, .002500, 0.0018])),
                    Gaussian(0.03, np.array([1000, 1500, 0, 0, 0])/1000, np.diag([.002500, .002500, .002500, .002500, 0.0018]))

@@ -2,7 +2,7 @@
 
 ### Overview
 This is a repository to contain all my projects for AEM667, navigation and target tracking,
-at the University of Alabama. The project subfolders all contain readmes with descriptions and some results highlights from the project.
+at the University of Alabama. The project subfolders all contain readmes with descriptions and some results highlights from the project. More extensive results are in the /plots folder for each project. 
 
 Project 1: Implement a linear kalman filter to estimate the error between two simulated clocks.  
 

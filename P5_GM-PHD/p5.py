@@ -9,18 +9,6 @@ AEM667 - Navigation and Target Tracking
 Project 5
 
 Written by Joey Westermeyer 2023
-
-notes:
-    issues with S being non invertible. Investigate:
-        Joseph form update (done, didn't help)
-        iterate on H,K matrices - making EKF an IEKF - (improved singularity from t=14 to t=18)
-        Add small number to diagonal of P and S to prevent underflow (didn't help)
-        
-        input scaling
-        Different KF formulations (square root filter?)
-        Thoronton and Bierman UD implementation
-        would like to make plotting not limited to scatter
-        write code that recognizes new tracks when plotting via distance change
     
 """
 
@@ -59,13 +47,12 @@ cardinalities = np.zeros(datalength)
 xs[:] = np.nan
 cardinalities[:] = np.nan
 
-dt = 1/1  # measurements taken at 1 Hz # FIXME cheating
+dt = 1/1  # measurements taken at 1 Hz
 
 # iterate through time steps, feeding in recorded data
 for i in range(datalength):
     print('')
  
-    
     # define clean and cluttered sensor data
     bearings = dataframes['bearings'].iloc[i, :].dropna()
     ranges = dataframes['ranges'].iloc[i, :].dropna()
