@@ -12,6 +12,8 @@ from numpy import linalg as LA
 import pandas as pd
 import math
 from matplotlib import pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
 from project2_resources import gps_data_parser as gps
 from pathlib import Path
 import re
@@ -177,6 +179,8 @@ ax.plot(betas[:,1],betas[:,0])
 ax.set(xlabel = 'East, m', ylabel = 'North, m',
        title = 'North-East coordinates, base at origin')
 plt.grid(True)
+plt.savefig('plots/NE_pos.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 # plot altitude vs time
 fig, ax = plt.subplots()
@@ -184,6 +188,8 @@ ax.plot(times-times[0],-betas[:,2])
 ax.set(xlabel = 'time, s', ylabel = 'Altitude, m',
        title = 'Height-time coordinates, base at origin')
 plt.grid(True)
+plt.savefig('plots/alt_time.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 # plot hdop vs time
 fig, ax = plt.subplots()
@@ -191,6 +197,8 @@ ax.plot(times-times[0],hdop)
 ax.set(xlabel = 'time, s', ylabel = 'HDOP',
        title = 'Horizontal Dilution of Precision vs time')
 plt.grid(True)
+plt.savefig('plots/HDOP.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 # plot vdop vs time
 fig, ax = plt.subplots()
@@ -198,4 +206,6 @@ ax.plot(times-times[0],vdop)
 ax.set(xlabel = 'time, s', ylabel = 'VDOP',
        title = 'Vertical Dilution of Precision vs time')
 plt.grid(True)
+plt.savefig('plots/VDOP.png', dpi=300, bbox_inches='tight')
+plt.close()
 

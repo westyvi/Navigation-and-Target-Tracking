@@ -16,6 +16,9 @@ from P3_Classes import EKF
 import navpy
 from queue import Queue
 import copy
+import matplotlib
+matplotlib.use('Agg')
+
 
 # import gps and imu data into queue data structure containing panda series for each time step
 all_gps_data = pd.read_csv('project3_resources/gps.txt')
@@ -43,10 +46,9 @@ x0[12:15] = 1e-4*np.array([2.4, -1.3, 5.6]) # gyroscope biases, rad/s
 P0 = 0.1 * np.eye(15)
 P0[:6, :6] = 1 * np.eye(6)
 dt = 0.02
+print('State initialized. Initial state:')
 print(x0)
 filter = EKF(x0,P0)
-print(x0)
-print(x0_forPlotting)
 
 # run EKF for the entirety of the gps/imu datasets given 
 x_est = np.zeros((GpsQueue.qsize(),15))
@@ -78,7 +80,6 @@ while True:
         # if new gps data, correct INS estimate according to ES-EKF equations
         if ( abs(gps_measurement[2] - gps_last[2]) > 0.0000001):
             filter.measurement_update(gps_measurement) 
-            print(i)
     
         # store estimated vehicle state at each timestep for plotting
         # FIXME also want to store apriori estimate so I can see the correction step happening
@@ -104,6 +105,8 @@ ax.plot(x_est[:,1],x_est[:,0])
 ax.set(xlabel = 'East, m', ylabel = 'North, m',
        title = 'North-East coordinates, origin at initial position')
 plt.grid(True)
+plt.savefig('plots/NE_pos.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 # Altitude vs time history
 fig, ax = plt.subplots()
@@ -111,6 +114,8 @@ ax.plot(times - times[0], -x_est[:,2])
 ax.set(xlabel = 'time, s', ylabel = 'altitude, m',
        title = 'Altitude time history')
 plt.grid(True)
+plt.savefig('plots/alt.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 # v vs time
 fig, ax = plt.subplots()
@@ -121,6 +126,8 @@ ax.set(xlabel = 'time, s', ylabel = 'velocity, m/s',
        title = 'navigation frame velocity time history')
 plt.grid(True)
 ax.legend()
+plt.savefig('plots/velocity.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 # roll vs time
 fig, ax = plt.subplots()
@@ -131,6 +138,8 @@ ax.set(xlabel = 'time, s', ylabel = 'Euler angle, rad',
        title = 'Euler angle time history')
 plt.grid(True)
 ax.legend()
+plt.savefig('plots/attitude.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 # accelerometer x_B bias vs time
 fig, ax = plt.subplots()
@@ -141,6 +150,8 @@ ax.set(xlabel = 'time, s', ylabel = 'accelerometer bias, m/s^2',
        title = 'acclerometer body-frame biases time history')
 plt.grid(True)
 ax.legend()
+plt.savefig('plots/accel_bias.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 # gyroscope x_B bias vs time
 fig, ax = plt.subplots()
@@ -151,6 +162,8 @@ ax.set(xlabel = 'time, s', ylabel = 'gyroscope bias, rad/s',
        title = 'gyroscope body-frame biases time history')
 plt.grid(True)
 ax.legend()
+plt.savefig('plots/gyro_bias.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 
 
@@ -180,4 +193,6 @@ ax1.set(ylabel="VDOP (m)")
 ax2.plot(hdops)
 ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="HDOP (m)")
+plt.savefig('plots/DOP.png', dpi=300, bbox_inches='tight')
+plt.close()
 

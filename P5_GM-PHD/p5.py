@@ -19,7 +19,7 @@ notes:
         input scaling
         Different KF formulations (square root filter?)
         Thoronton and Bierman UD implementation
-    would like to make plotting not limited to scatter
+        would like to make plotting not limited to scatter
         write code that recognizes new tracks when plotting via distance change
     
 """
@@ -30,6 +30,9 @@ import math
 from matplotlib import pyplot as plt
 from p5_Classes import Gaussian, GMPHD
 import os
+import matplotlib
+matplotlib.use('Agg')
+
 
 # Load csv files into dictionary of data frames
 resource_path = os.path.join(".", "project5_resources")
@@ -61,7 +64,6 @@ dt = 1/1  # measurements taken at 1 Hz # FIXME cheating
 # iterate through time steps, feeding in recorded data
 for i in range(datalength):
     print('')
-    print(i)
  
     
     # define clean and cluttered sensor data
@@ -131,8 +133,9 @@ for i in range(datalength):
 truth_time = np.linspace(0, datalength*dt, num=datalength)
 
 # plot estimated xy plane track trajectory
+
+# Plot 1: original xy_trajectory (filter and truth)
 fig, ax = plt.subplots()
-# j is objects: loop through each potential object, plot it for all time (first index) and one state (middle index)
 for j in range(0,100):
     if j == 0:
         ax.scatter(xs[:,0,j],xs[:,1,j], c='black', s=filter_size, label='cluttered PDAF', alpha=opacity)
@@ -144,6 +147,26 @@ ax.set(xlabel = 'x, m', ylabel = 'y, m',
       title = 'xy plane track trajectory')
 ax.legend()
 plt.grid(True)
+plt.savefig('plots/xy_trajectory.png', dpi=300, bbox_inches='tight')
+plt.close()
+
+# Plot 2: xy_trajectory with all position measurements (clutter/noise)
+fig, ax = plt.subplots()
+for j in range(0,100):
+    if j == 0:
+        ax.scatter(xs[:,0,j],xs[:,1,j], c='black', s=filter_size, label='cluttered PDAF', alpha=opacity)
+        ax.scatter(truth[:,0,j],truth[:,1,j], c='red', s=truth_size, label='truth', alpha=opacity) 
+    else:
+        ax.scatter(xs[:,0,j],xs[:,1,j], c='black', s=filter_size, alpha=opacity)
+        ax.scatter(truth[:,0,j],truth[:,1,j], c='red', s=truth_size, alpha=opacity) 
+# Overlay all position measurements (converted from range/bearing)
+ax.scatter(x_coordinates, y_coordinates, c='blue', s=2, alpha=0.2, label='measurements')
+ax.set(xlabel = 'x, m', ylabel = 'y, m',
+      title = 'xy plane track trajectory with measurements')
+ax.legend()
+plt.grid(True)
+plt.savefig('plots/xy_trajectory_with_measurements.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 
 # Plot the transformed range and bearing measurements to the position domain overlaid with the true and estimated 𝑥 and 𝑦 position vs. time
@@ -168,6 +191,8 @@ ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="y_pos (m)")
 fig.legend()
 ax2.scatter(ts, y_coordinates, s=2, alpha=.2)
+plt.savefig('plots/pos_vs_time.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 # Plot the true and estimated cardinality vs. time
 fig, ax1 = plt.subplots()
@@ -178,6 +203,8 @@ ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="Cardinality")
 fig.legend()
 ax1.set_ylim(bottom=0, top=None)
+plt.savefig('plots/cardinality_vs_time.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 '''
 # Plot the true and estimated 𝑥 and 𝑦 velocity vs. time
@@ -195,7 +222,9 @@ for j in range(0,100):
 ax2.plot()
 ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="v_y (m/s)")
-fig.legend()'''
+fig.legend()
+plt.savefig('plots/vel_vs_time.png', dpi=300, bbox_inches='tight')
+plt.close()'''
 
 # Plot the true and estimated turn-rate, 𝜔, vs. time
 fig, ax1 = plt.subplots()
@@ -210,5 +239,7 @@ for j in range(0,100):
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="w (rad/s)")
 fig.legend()
+plt.savefig('plots/turnrate_vs_time.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 dummyvar = 5 # stops code from printing commented block of code to console

@@ -19,6 +19,9 @@ from matplotlib import pyplot as plt
 from p4_Classes import EKF, NN, PDAF
 import os
 import copy
+import matplotlib
+matplotlib.use('Agg')
+
 
 # Load csv files into dictionary of data frames
 resource_path = os.path.join(".", "project4_resources")
@@ -57,7 +60,6 @@ pdaf_clutter = PDAF(copy.deepcopy(x0), copy.deepcopy(P0))
 dt = 1/1  # measurements taken at 1 Hz
 
 for i in range(datalength):
-    print(i)
     
     # define clean and cluttered sensor data
     bearings_clean = dataframes['bearings_clean'].iloc[i, :].dropna()
@@ -82,8 +84,8 @@ for i in range(datalength):
 # first, convert clean sensor data to state to plot as points to compare to EKF performance
 measures = np.zeros((datalength, 2)) # x,y 
 for i in range(datalength):
-    bear = dataframes['bearings_clean'].iloc[i]
-    r = dataframes['ranges_clean'].iloc[i]
+    bear = dataframes['bearings_clean'].iloc[i].iloc[0]
+    r = dataframes['ranges_clean'].iloc[i].iloc[0]
     measures[i,0] = math.sqrt(r**2/(((math.tan(bear))**-2)+1))*math.tan(bear)/abs(math.tan(bear))
     measures[i,1] = math.sqrt(r**2/(((math.tan(bear))**2)+1))
     
@@ -134,6 +136,8 @@ plt.grid(True)
 #ax.scatter(x_coordinates, y_coordinates, s=2, alpha=.2) # cluttered detections
 #ax.scatter(measures[:,0], measures[:,1], marker='o',s=1, color='b') # clean detections
 
+plt.savefig('plots/xy_trajectory.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 # Plot the transformed range and bearing measurements to the position domain overlaid with the true and estimated 𝑥 and 𝑦 position vs. time
 fig, (ax1, ax2) = plt.subplots(2, 1, tight_layout=True, figsize=(8, 5))
@@ -155,6 +159,8 @@ ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="y_pos (m)")
 fig.legend()
 ax2.scatter(ts, y_coordinates, s=2, alpha=.2)
+plt.savefig('plots/pos_vs_time.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 # Plot the true and estimated 𝑥 and 𝑦 velocity vs. time
 fig, (ax1, ax2) = plt.subplots(2, 1)
@@ -174,6 +180,8 @@ ax2.plot()
 ax2.set(xlabel="Time (s)")
 ax2.set(ylabel="v_y (m/s)")
 fig.legend()
+plt.savefig('plots/vel_vs_time.png', dpi=300, bbox_inches='tight')
+plt.close()
 
 # Plot the true and estimated turn-rate, 𝜔, vs. time
 fig, ax1 = plt.subplots()
@@ -185,3 +193,5 @@ ax1.plot(xs_clutterPDAF[:,4], 'c', label='cluttered PDAF')
 ax1.set(xlabel="Time (s)")
 ax1.set(ylabel="w (rad/s)")
 fig.legend()
+plt.savefig('plots/turnrate_vs_time.png', dpi=300, bbox_inches='tight')
+plt.close()
